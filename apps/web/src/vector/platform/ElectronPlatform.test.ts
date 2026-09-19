@@ -24,6 +24,7 @@ import Modal from "../../Modal";
 import DesktopCapturerSourcePicker from "../../components/views/elements/DesktopCapturerSourcePicker";
 import ElectronPlatform from "./ElectronPlatform";
 import ToastStore from "../../stores/ToastStore.ts";
+import SdkConfig, { type ConfigOptions } from "../../SdkConfig.ts";
 
 vi.mock("../../rageshake/rageshake", () => ({
     flush: vi.fn(),
@@ -58,6 +59,7 @@ describe("ElectronPlatform", () => {
     beforeEach(() => {
         window.electron = mockElectron;
         vi.clearAllMocks();
+        SdkConfig.reset();
         Object.defineProperty(window, "navigator", { value: { userAgent: defaultUserAgent }, writable: true });
     });
 
@@ -218,6 +220,24 @@ describe("ElectronPlatform", () => {
             const platform = new ElectronPlatform();
             expect(platform.getDefaultDeviceDisplayName()).toEqual(result);
         });
+    });
+
+    describe("baseUrl", () => {
+        it("defaults to the Family Chat web app", () => {
+            const platform = new ElectronPlatform();
+            expect(platform.baseUrl).toBe("https://app.safechat.family");
+        });
+
+        it("uses web_base_url from the config when set", () => {
+            SdkConfig.put({ web_base_url: "https://chat.example.org/" } as ConfigOptions);
+            const platform = new ElectronPlatform();
+            expect(platform.baseUrl).toBe("https://chat.example.org/");
+        });
+    });
+
+    it("defaults the OAuth client URI to safechat.family", () => {
+        const platform = new ElectronPlatform();
+        expect(platform.defaultOAuthClientUri).toBe("https://safechat.family");
     });
 
     it("returns true for needsUrlTooltips", () => {
