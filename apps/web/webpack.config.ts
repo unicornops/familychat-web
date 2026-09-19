@@ -51,7 +51,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config();
 let ogImageUrl = process.env.RIOT_OG_IMAGE_URL;
-if (!ogImageUrl) ogImageUrl = "https://app.element.io/themes/element/img/logos/opengraph.png";
+if (!ogImageUrl) ogImageUrl = "https://app.safechat.family/themes/element/img/logos/opengraph.png";
 
 const cssThemes = {
     // CSS themes
@@ -166,7 +166,6 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
 
         entry: {
             bundle: "./src/vector/index.ts",
-            mobileguide: "./src/vector/mobile_guide/index.ts",
             jitsi: "./src/vector/jitsi/index.ts",
             usercontent: "./src/usercontent/index.ts",
             serviceworker: {
@@ -637,7 +636,7 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
                 // HtmlWebpackPlugin will screw up our formatting like the names
                 // of the themes and which chunks we actually care about.
                 inject: false,
-                excludeChunks: ["mobileguide", "usercontent", "jitsi", "serviceworker"],
+                excludeChunks: ["usercontent", "jitsi", "serviceworker"],
                 minify: false,
                 templateParameters: {
                     og_image_url: ogImageUrl,
@@ -651,14 +650,6 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
                 filename: "jitsi.html",
                 minify: false,
                 chunks: ["jitsi"],
-            }),
-
-            // This is the mobile guide's entry point (separate for faster mobile loading)
-            new HtmlWebpackPlugin({
-                template: "./src/vector/mobile_guide/index.html",
-                filename: "mobile_guide/index.html",
-                minify: false,
-                chunks: ["mobileguide"],
             }),
 
             // These are the static error pages for when the javascript env is *really unsupported*
@@ -710,6 +701,8 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
                     "res/jitsi_external_api.min.js.LICENSE.txt",
                     "res/manifest.json",
                     { from: "themes/**", context: path.resolve(__dirname, "res") },
+                    // Family Chat welcome & home pages, see docs/custom-home.md
+                    { from: "welcome/**", context: path.resolve(__dirname, "res") },
                     { from: "vector-icons/**", context: path.resolve(__dirname, "res") },
                     { from: "decoder-ring/**", context: path.resolve(__dirname, "res") },
                     { from: "media/**", context: path.resolve(__dirname, "res/") },
@@ -719,12 +712,6 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
                         from: "**",
                         context: path.join(getPackageRoot("@element-hq/element-call-embedded"), "dist"),
                         to: path.join(__dirname, "webapp", "widgets", "element-call"),
-                    },
-                    // Mobile guide assets
-                    {
-                        from: "assets/**",
-                        context: path.resolve(__dirname, "src/vector/mobile_guide"),
-                        to: "mobile_guide",
                     },
                 ],
             }),
@@ -820,8 +807,6 @@ export default (env: string, argv: Record<string, any>): webpack.Configuration =
 function getAssetOutputPath(url: string, resourcePath: string): string {
     const isKaTeX = resourcePath.includes("KaTeX");
     const isFontSource = resourcePath.includes("@fontsource");
-    const mobileGuideAssetsPath = path.join("mobile_guide", "assets");
-    const isMobileGuide = resourcePath.includes(mobileGuideAssetsPath);
     // `res` is the parent dir for our own assets in various layers
     // `dist` is the parent dir for KaTeX assets
     // `files` is the parent dir for @fontsource assets
@@ -853,11 +838,6 @@ function getAssetOutputPath(url: string, resourcePath: string): string {
 
     if (isFontSource) {
         outputDir = "fonts";
-    }
-
-    if (isMobileGuide) {
-        // Specific handling for the mobile guide assets, as they live alongside the page sources.
-        outputDir = mobileGuideAssetsPath;
     }
 
     if (isKaTeX) {

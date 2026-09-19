@@ -17,24 +17,27 @@ import ElementDesktopLogoSvg from "../res/img/element-desktop-logo.svg";
 
 // see element-web config.md for docs, or the IConfigOptions interface for dev docs
 export const DEFAULTS = {
-    brand: "Element",
+    brand: "Family Chat",
     branding: {
-        logo_link_url: "https://element.io",
+        logo_link_url: "https://safechat.family",
         auth_header_logo_url: "themes/element/img/logos/element-logo.svg",
-        welcome_background_url: "themes/element/img/backgrounds/lake.jpg",
+        welcome_background_url: "themes/element/img/backgrounds/welcome.jpg",
     },
-    help_url: "https://element.io/help",
-    help_encryption_url: "https://element.io/help#encryption",
-    help_key_storage_url: "https://element.io/help#encryption5",
-    integrations_ui_url: "https://scalar.vector.im/",
-    integrations_rest_url: "https://scalar.vector.im/api",
+    help_url: "https://safechat.family/docs/",
+    help_encryption_url: "https://safechat.family/docs/faq/",
+    help_key_storage_url: "https://safechat.family/docs/faq/",
+    // Integration managers are disabled for Family Chat: no default is set, and config.json sets
+    // integrations_ui_url/integrations_rest_url to null, so no third-party service is contacted.
     show_labs_settings: false,
     force_verification: false,
     enable_client_well_known_lookups: true,
 
     jitsi: {
-        preferred_domain: "meet.element.io",
+        // Jitsi conferencing is disabled for Family Chat (see UIFeature.voip in config.json).
+        preferred_domain: "",
     },
+    // Element Call is disabled in config.json (`element_call.disable`); the brand string is only
+    // used if something re-enables it.
     element_call: {
         brand: "Element Call",
     },
@@ -44,31 +47,23 @@ export const DEFAULTS = {
     // everyone's config which has the camelCase property because our default would
     // be preferred over their config.
     desktopBuilds: {
-        available: true,
+        available: false,
         logo: ElementDesktopLogoSvg,
-        url: "https://element.io/get-started",
+        url: "https://safechat.family/docs/guides/matrix-client-setup/",
     },
 
     feedback: {
-        existing_issues_url:
-            "https://github.com/vector-im/element-web/issues?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc",
-        new_issue_url: "https://github.com/vector-im/element-web/issues/new/choose",
+        existing_issues_url: "https://safechat.family/docs/faq/",
+        new_issue_url: "https://safechat.family/docs/faq/",
     },
 
     desktop_builds: {
-        available: true,
+        available: false,
         logo: "vector-icons/1024.png",
-        url: "https://element.io/download",
-        url_macos: "https://packages.element.io/desktop/install/macos/Element.dmg",
-        url_win64: "https://packages.element.io/desktop/install/win32/x64/Element%20Setup.exe",
-        url_win64arm: "https://packages.element.io/desktop/install/win32/arm64/Element%20Setup.exe",
-        url_linux: "https://element.io/download#linux",
+        url: "https://safechat.family/docs/guides/matrix-client-setup/",
     },
-    mobile_builds: {
-        ios: "https://apps.apple.com/app/vector/id1083446067",
-        android: "https://play.google.com/store/apps/details?id=im.vector.app",
-        fdroid: "https://f-droid.org/repository/browse/?fdid=im.vector.app",
-    },
+    // Family Chat has no published mobile apps yet, so no download URLs are defaulted here and
+    // config.json sets them to null. See unicornops/family-chat#233 and #234.
 } satisfies ConfigOptions;
 
 export type { ConfigOptions };

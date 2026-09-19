@@ -1,0 +1,65 @@
+<!--
+Copyright 2026 Unicorn Operations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only
+
+Home page for Family Chat, loaded via `embedded_pages.home_url`.
+See docs/custom-home.md. $brand is substituted with the configured brand name.
+-->
+<style type="text/css">
+    .fc_home {
+        max-width: 560px;
+        margin: 0 auto;
+        font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+    }
+
+    .fc_home h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .fc_home p {
+        color: var(--cpd-color-text-secondary);
+    }
+
+    .fc_home ul {
+        list-style: none;
+        padding: 0;
+        margin: 24px 0 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .fc_home ul a {
+        display: block;
+        padding: 12px 16px;
+        border-radius: 12px;
+        border: 1px solid var(--cpd-color-border-interactive-secondary);
+        text-decoration: none;
+        font-weight: 600;
+        color: inherit;
+    }
+
+    .fc_home ul a:hover {
+        border-color: #0d9488;
+        color: #0d9488;
+    }
+</style>
+
+<div class="fc_home">
+    <h1>$brand</h1>
+    <p>Pick a conversation on the left, or start something new.</p>
+
+    <ul>
+        <li><a href="#/dm">Start a direct message</a></li>
+        <li><a href="#/new">Create a group chat</a></li>
+        <li>
+            <a href="https://panel.safechat.family/" target="_blank" rel="noopener noreferrer"
+                >Parents: control panel</a
+            >
+        </li>
+        <li><a href="https://safechat.family/docs/" target="_blank" rel="noopener noreferrer">Help and guides</a></li>
+    </ul>
+</div>

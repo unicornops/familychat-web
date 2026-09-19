@@ -1,0 +1,84 @@
+<!--
+Copyright 2026 Unicorn Operations Ltd.
+
+SPDX-License-Identifier: AGPL-3.0-only
+
+Welcome page for Family Chat, loaded via `embedded_pages.welcome_url`.
+See docs/custom-home.md. $brand is substituted with the configured brand name.
+-->
+<style type="text/css">
+    .fc_welcome {
+        max-width: 480px;
+        margin: 0 auto;
+        text-align: center;
+        font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+    }
+
+    .fc_welcome img {
+        width: 88px;
+        height: 88px;
+    }
+
+    .fc_welcome h1 {
+        margin: 16px 0 8px;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+
+    .fc_welcome p {
+        margin: 0 0 24px;
+        color: var(--cpd-color-text-secondary);
+    }
+
+    .fc_welcome_actions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+
+    .fc_welcome_actions a {
+        display: block;
+        padding: 12px 20px;
+        border-radius: 9999px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .fc_welcome_primary {
+        background: #0d9488;
+        color: #ffffff;
+    }
+
+    .fc_welcome_primary:hover {
+        background: #0f766e;
+    }
+
+    .fc_welcome_secondary {
+        border: 1px solid #0d9488;
+        color: #0d9488;
+    }
+
+    .fc_welcome_help {
+        margin-top: 24px;
+        font-size: 0.875rem;
+    }
+</style>
+
+<div class="fc_welcome">
+    <img src="themes/element/img/logos/element-logo.svg" alt="$brand" />
+    <h1>Welcome to $brand</h1>
+    <p>Your family's own private chat. Sign in with the details a parent set up for you in the control panel.</p>
+
+    <div class="fc_welcome_actions">
+        <a class="fc_welcome_primary" href="#/login">Sign in</a>
+        <a class="fc_welcome_secondary" href="https://panel.safechat.family/" target="_blank" rel="noopener noreferrer">
+            Parents: open the control panel
+        </a>
+    </div>
+
+    <p class="fc_welcome_help">
+        Need a hand? Read the
+        <a href="https://safechat.family/docs/" target="_blank" rel="noopener noreferrer">help guides</a>.
+    </p>
+</div>

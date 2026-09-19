@@ -5,8 +5,8 @@
             "layers": [
                 {
                     "glass": false,
-                    "image-name": "element.png",
-                    "name": "element"
+                    "image-name": "familychat.png",
+                    "name": "familychat"
                 }
             ],
             "name": "Figma",
@@ -22,6 +22,8 @@
         }
     ],
     "supported-platforms": {
-        "squares": ["macOS"]
+        "squares": [
+            "macOS"
+        ]
     }
 }

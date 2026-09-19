@@ -19,7 +19,7 @@ import PlatformPeg from "../../PlatformPeg";
 
 describe("getOAuthClientId()", () => {
     const issuer = "https://auth.com/";
-    const clientName = "Element";
+    const clientName = "Family Chat";
     const baseUrl = "https://just.testing";
     const dynamicClientId = "xyz789";
     const staticOAuthClients = {

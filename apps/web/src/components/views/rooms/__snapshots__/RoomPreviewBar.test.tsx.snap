@@ -201,7 +201,7 @@ exports[`<RoomPreviewBar /> > with an error > renders other errors 1`] = `
     <span>
       Something_else was returned while trying to access the room or space. If you think you're seeing this message in error, please 
       <a
-        href="https://github.com/vector-im/element-web/issues/new/choose"
+        href="https://safechat.family/docs/faq/"
         rel="noreferrer noopener"
         target="_blank"
       >
@@ -247,7 +247,7 @@ exports[`<RoomPreviewBar /> > with an invite > with an invited email > when clie
     This invite to RoomPreviewBar-test-room was sent to test@test.com
   </h3>
   <p>
-    Share this email in Settings to receive invites directly in Element.
+    Share this email in Settings to receive invites directly in Family Chat.
   </p>
 </div>
 `;
@@ -260,7 +260,7 @@ exports[`<RoomPreviewBar /> > with an invite > with an invited email > when clie
     This invite to RoomPreviewBar-test-room was sent to test@test.com
   </h3>
   <p>
-    Share this email in Settings to receive invites directly in Element.
+    Share this email in Settings to receive invites directly in Family Chat.
   </p>
 </div>
 `;
@@ -305,7 +305,7 @@ exports[`<RoomPreviewBar /> > with an invite > with an invited email > when clie
     This invite to RoomPreviewBar-test-room was sent to test@test.com
   </h3>
   <p>
-    Use an identity server in Settings to receive invites directly in Element.
+    Use an identity server in Settings to receive invites directly in Family Chat.
   </p>
 </div>
 `;
@@ -318,7 +318,7 @@ exports[`<RoomPreviewBar /> > with an invite > with an invited email > when invi
     This invite to RoomPreviewBar-test-room was sent to test@test.com which is not associated with your account
   </h3>
   <p>
-    Link this email with your account in Settings to receive invites directly in Element.
+    Link this email with your account in Settings to receive invites directly in Family Chat.
   </p>
 </div>
 `;

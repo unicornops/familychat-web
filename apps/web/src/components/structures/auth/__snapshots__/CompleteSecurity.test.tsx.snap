@@ -4,7 +4,7 @@ exports[`CompleteSecurity > Allows verifying with another device if one is avail
 <DocumentFragment>
   <div
     class="mx_AuthPage"
-    style="background: url("themes/element/img/backgrounds/lake.jpg") center center / cover fixed;"
+    style="background: url("themes/element/img/backgrounds/welcome.jpg") center center / cover fixed;"
   >
     <div
       class="mx_AuthPage_modal"
@@ -198,7 +198,7 @@ exports[`CompleteSecurity > Allows verifying with recovery key if one is availab
 <DocumentFragment>
   <div
     class="mx_AuthPage"
-    style="background: url("themes/element/img/backgrounds/lake.jpg") center center / cover fixed;"
+    style="background: url("themes/element/img/backgrounds/welcome.jpg") center center / cover fixed;"
   >
     <div
       class="mx_AuthPage_modal"
