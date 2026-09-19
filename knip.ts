@@ -79,6 +79,13 @@ export default {
                 // would with a normal library).
                 "@types/sdp-transform",
 
+                // Same reason, but specific to this fork: we consume a *released* matrix-js-sdk
+                // rather than upstream's linked `develop` checkout, so js-sdk's ambient
+                // `src/@types/matrix-sdk-crypto-wasm.d.ts` (pulled in explicitly by
+                // playwright/tsconfig.json) only resolves the module if it is a direct
+                // dependency of apps/web under pnpm's strict node_modules.
+                "@matrix-org/matrix-sdk-crypto-wasm",
+
                 // Referenced as a tsconfig `types` entry rather than imported, so knip
                 // cannot see it. It has to be a direct dependency for
                 // `@vitest/browser/matchers` to resolve under pnpm's strict node_modules.

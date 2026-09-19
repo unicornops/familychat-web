@@ -51,7 +51,10 @@ const config: Config = {
         "test-utils-rtl": "<rootDir>/test/test-utils/jest-matrix-react.tsx",
     },
     transformIgnorePatterns: [
-        `${path.join(__dirname, "../..")}/node_modules/.pnpm/(?!(matrix-js-sdk|htmlparser2|mime|uuid|p-retry|is-network-error|react-merge-refs|is-ip|ip-regex|super-regex|function-timeout|time-span|convert-hrtime|clone-regexp|is-regexp|matrix-web-i18n|await-lock|@element-hq/web-shared-components|react-virtuoso|lodash|domutils|domhandler|domelementtype|dom-serializer|entities)).+$`,
+        // `content-type` is ESM-only and reached through matrix-js-sdk. Upstream links a
+        // matrix-js-sdk git checkout whose dependencies live outside this path, so they never
+        // need it here; this fork consumes the published package, so it does.
+        `${path.join(__dirname, "../..")}/node_modules/.pnpm/(?!(matrix-js-sdk|content-type|htmlparser2|mime|uuid|p-retry|is-network-error|react-merge-refs|is-ip|ip-regex|super-regex|function-timeout|time-span|convert-hrtime|clone-regexp|is-regexp|matrix-web-i18n|await-lock|@element-hq/web-shared-components|react-virtuoso|lodash|domutils|domhandler|domelementtype|dom-serializer|entities)).+$`,
     ],
     collectCoverageFrom: [
         "<rootDir>/src/**/*.{js,ts,tsx}",
