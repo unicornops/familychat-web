@@ -1,12 +1,13 @@
-<!-- Thanks for submitting a PR! This checklist has the essential things that needs to be done so we can review your PR. Make sure each item is completed before checking its box. -->
+<!-- Thanks for the PR. Family Chat issues and planning live in unicornops/family-chat. -->
 
 ## Checklist
 
-- [ ] I have read through [review guidelines](https://github.com/element-hq/element-web/blob/develop/docs/review.md) and [CONTRIBUTING.md](https://github.com/element-hq/element-web/blob/develop/CONTRIBUTING.md).
-- [ ] I have linked the PR to an issue that describes what needs changing.
+- [ ] I have linked the issue in `unicornops/family-chat` this PR addresses.
+- [ ] This PR targets `familychat`, and the commit messages follow Conventional Commits.
+- [ ] I have kept the diff against upstream Element Web as small as the change allows, preferring
+      `config.json`, skinning and theming over code changes.
 - [ ] I have written tests for new code (and old code if feasible).
-- [ ] I have ensured new or updated `public`/`exported` symbols have accurate [TSDoc](https://tsdoc.org/) documentation.
 - [ ] I have confirmed linter and other CI checks pass.
-- [ ] I have have included screenshots if what the user sees will change
-- [ ] I have licensed the changes to Element by completing the [Contributor License Agreement (CLA)](https://cla-assistant.io/element-hq/element-web)
-- [ ] I will no longer force push to this branch
+- [ ] I have included screenshots if what the user sees will change.
+- [ ] Nothing in this PR sends family content or metadata to a third party.
+- [ ] I have not pushed anything to `element-hq`.

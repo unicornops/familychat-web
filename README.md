@@ -1,117 +1,191 @@
-[![Chat](https://img.shields.io/matrix/element-web:matrix.org?logo=matrix)](https://matrix.to/#/#element-web:matrix.org)
-![Tests](https://github.com/element-hq/element-web/actions/workflows/tests.yaml/badge.svg)
-![Static Analysis](https://github.com/element-hq/element-web/actions/workflows/static_analysis.yaml/badge.svg)
-[![Localazy](https://img.shields.io/endpoint?url=https%3A%2F%2Fconnect.localazy.com%2Fstatus%2Felement-web%2Fdata%3Fcontent%3Dall%26title%3Dlocalazy%26logo%3Dtrue)](https://localazy.com/p/element-web)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=element-web&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=element-web)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=element-web&metric=coverage)](https://sonarcloud.io/summary/new_code?id=element-web)
-[![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=element-web&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=element-web)
-[![Bugs](https://sonarcloud.io/api/project_badges/measure?project=element-web&metric=bugs)](https://sonarcloud.io/summary/new_code?id=element-web)
+![Build](https://github.com/unicornops/familychat-web/actions/workflows/build.yml/badge.svg?branch=familychat)
+![Tests](https://github.com/unicornops/familychat-web/actions/workflows/tests.yml/badge.svg?branch=familychat)
+![Static Analysis](https://github.com/unicornops/familychat-web/actions/workflows/static_analysis.yaml/badge.svg?branch=familychat)
 
-# Element
+# Family Chat (web & desktop)
 
-Element (formerly known as Vector and Riot) is a Matrix web & desktop client built using the [Matrix
-JS SDK](https://github.com/matrix-org/matrix-js-sdk).
+Family Chat is the web and desktop client for [Family Chat](https://safechat.family), a managed
+[Matrix](https://matrix.org) service that gives each family its own private homeserver.
 
-# Supported Environments
+It is a fork of [Element Web](https://github.com/element-hq/element-web) by Element, used and
+distributed under the AGPL-3.0. Everything that makes it a Matrix client is Element's work; what
+this repository adds is the Family Chat branding, configuration and packaging.
 
-Element has several tiers of support for different environments:
+- Web client: <https://app.safechat.family> (hosted on Cloudflare Pages)
+- Desktop app: Windows, macOS and Linux via Electron, in [`apps/desktop`](apps/desktop)
+- Marketing site and docs: <https://safechat.family>
+- Control panel: <https://panel.safechat.family>
+- Issues and planning live in [unicornops/family-chat](https://github.com/unicornops/family-chat), not here.
 
-- Supported
-    - Definition:
-        - Issues **actively triaged**, regressions **block** the release
-    - Last 2 major versions of Chrome, Firefox, and Edge on desktop OSes
-    - Last 2 versions of Safari
-    - Latest release of official Element Desktop app on desktop OSes
-    - Desktop OSes means macOS, Windows, and Linux versions for desktop devices
-      that are actively supported by the OS vendor and receive security updates
-- Best effort
-    - Definition:
-        - Issues **accepted**, regressions **do not block** the release
-        - The wider Element Products (including Element Call and the Enterprise Server Suite) do still not officially support these browsers.
-        - The element web project and its contributors should keep the client functioning and gracefully degrade where other sibling features (E.g. Element Call) may not function.
-    - Last major release of Firefox ESR and Chrome/Edge Extended Stable
-- Community Supported
-    - Definition:
-        - Issues **accepted**, regressions **do not block** the release
-        - Community contributions are welcome to support these issues
-    - Mobile web for current stable version of Chrome, Firefox, and Safari on Android, iOS, and iPadOS
-- Not supported
-    - Definition: Issues only affecting unsupported environments are **closed**
-    - Everything else
+## Provenance
 
-The period of support for these tiers should last until the releases specified above, plus 1 app release cycle(2 weeks). In the case of Firefox ESR this is extended further to allow it land in Debian Stable.
+|                |                                                                     |
+| -------------- | ------------------------------------------------------------------- |
+| Upstream       | [element-hq/element-web](https://github.com/element-hq/element-web) |
+| Forked at      | tag `v1.12.28`                                                      |
+| Default branch | `familychat`                                                        |
+| Licence        | AGPL-3.0-only (see [Copyright & licence](#copyright--licence))      |
 
-For accessing Element on an Android or iOS device, we currently recommend the
-native apps [element-x-android](https://github.com/element-hq/element-x-android)
-and [element-x-ios](https://github.com/element-hq/element-x-ios).
+`element-hq/element-desktop` was archived in March 2026 and merged into `element-web`, so this one
+repository builds the browser app and all three desktop platforms.
 
-# Getting Started
+## What we changed
 
-The easiest way to test Element is to just use the hosted copy at <https://app.element.io>.
-The `develop` branch is continuously deployed to <https://develop.element.io>
-for those who like living dangerously.
+- **Branding.** Name, logo, favicon, PWA icons, desktop icons, welcome page and colours are Family
+  Chat's. No Element logo, wordmark or marketing copy is shipped.
+- **Configuration.** `apps/web/familychat/config.json` and `apps/desktop/familychat/config.json`
+  replace upstream's `element.io/` config directories.
+- **Third-party services removed.** No PostHog, no Sentry, no rageshake endpoint, no MapTiler, no
+  integration manager, no Jitsi, no Element Call, no `mobile.element.io` redirect. See
+  [Third-party services](#third-party-services).
+- **Packaging.** Application id `family.safechat.desktop`, product name "Family Chat", executable
+  and Debian package `familychat`, protocol handler `familychat://`.
 
-To host your own instance of Element see [Installing Element Web](docs/install.md).
+The diff against upstream is kept deliberately small so that merging upstream releases stays cheap.
+Prefer `config.json`, [skinning](docs/skinning.md) and [theming](docs/theming.md) over code changes.
 
-To install Element as a desktop application, see [Running as a desktop app](#running-as-a-desktop-app) below.
+## Building
 
----
+Node is pinned in [`.node-version`](.node-version) and pnpm in `devEngines` in
+[`package.json`](package.json).
 
-# Monorepo
+```sh
+pnpm install
 
-This repository is a monorepo hosting Element Web and other related projects in various subdirectories.
-You can read more about the structure [here](docs/monorepo.md).
+# Web app -> apps/web/webapp
+cp apps/web/familychat/config.json apps/web/config.json
+pnpm --filter familychat-web build
+```
 
-# Element Web
+Serve `apps/web/webapp` with any static file host. Deployment notes are in
+[docs/install.md](docs/install.md); the Cloudflare Pages setup for `app.safechat.family` is tracked
+in [unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235).
 
-To learn more about Element Web [click here](apps/web/README.md)
+### Desktop
 
-# Running as a Desktop app
+The desktop app wraps a built web app. Build the web app first, then:
 
-Element can also be run as a desktop app, wrapped in Electron. You can download a
-pre-built version from <https://element.io/get-started> or, if you prefer,
-build it yourself.
+```sh
+cd apps/desktop
+cp -r ../web/webapp ./webapp
+pnpm run asar-webapp
+mkdir -p .hak/hakModules      # skip the native modules (no encrypted search / secure storage)
+pnpm run build -- -l tar.gz deb --publish never
+```
 
-To build it yourself, follow the instructions at <https://github.com/element-hq/element-web/tree/develop/apps/desktop>.
+Artifacts land in `apps/desktop/dist`. `VARIANT_PATH` selects the electron-builder variant and
+defaults to [`apps/desktop/familychat/build.json`](apps/desktop/familychat/build.json).
 
-Many thanks to @aviraldg for the initial work on the Electron integration.
+Do **not** use `pnpm run fetch`: it still downloads Element's release tarball from
+`github.com/element-hq`. Build the web app in-tree instead.
 
-The [configuration docs](docs/config.md#desktop-app-configuration) show how to override the desktop app's default settings if desired.
+Optionally [build the native modules](docs/native-node-modules.md) (`matrix-seshat` for encrypted
+search, sqlcipher for secure storage). CI does not, so CI artifacts are built without them.
 
-# Development
+## Keeping up with upstream
 
-Please read through the following:
+Upstream ships roughly weekly. We merge upstream release tags into `familychat` on a **fortnightly**
+cadence, so we are at most one release behind.
+
+```sh
+# one-off
+git remote add upstream https://github.com/element-hq/element-web.git
+git remote set-url --push upstream DISABLED   # never push to element-hq
+
+# each cycle
+git fetch upstream --tags
+git switch familychat && git pull
+git switch -c chore/merge-upstream-vX.Y.Z
+git merge vX.Y.Z
+# resolve conflicts, then
+pnpm install && pnpm lint && pnpm test:unit
+pnpm --filter familychat-web build
+```
+
+Conflicts cluster in a small, predictable set of files:
+
+| File                                                  | Why it conflicts                                |
+| ----------------------------------------------------- | ----------------------------------------------- |
+| `apps/web/src/SdkConfig.ts`                           | our `DEFAULTS` replace Element's hosts          |
+| `apps/web/src/vector/index.html`, `res/manifest.json` | title, icons, theme colour                      |
+| `apps/web/webpack.config.ts`                          | `welcome/**` copy pattern, removed mobile guide |
+| `apps/desktop/electron-builder.ts`                    | variant path, deb recommends                    |
+| `apps/web/src/i18n/strings/en_EN.json`                | rebranded English strings                       |
+| `.github/workflows/**`                                | we deleted most upstream workflows              |
+| `package.json`, `apps/*/package.json`                 | names, homepage, licence                        |
+
+Open the merge as a PR against `familychat`; never push to `element-hq`.
+
+## Third-party services
+
+Family Chat must not send family content or metadata to anyone but us. This build contacts:
+
+- the family's own homeserver (`<slug>.safechat.family`, or their custom domain),
+- `safechat.family` / `panel.safechat.family` for help, legal and control-panel links,
+- `matrix.org` only for the "Powered by Matrix" link in the login footer (a link, not a request).
+
+Removed or disabled relative to upstream: PostHog analytics, Sentry, the rageshake bug-report
+endpoint, MapTiler map tiles and location sharing, the Scalar integration manager, Jitsi, Element
+Call, the `mobile.element.io` mobile guide and its redirect, and the `packages.element.io` /
+`element.io` download links. A full audit is tracked in
+[unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235) §2 and §7.
+
+## Placeholders
+
+These are not yet real and must be settled before the client is handed to families:
+
+- `default_server_config` in both `config.json` files points at `https://matrix.safechat.family`,
+  which **does not exist**. Every family has its own homeserver (`<slug>.safechat.family`), and
+  `safechat.family` does not serve `/.well-known/matrix/client`. Combined with
+  `disable_custom_urls: true`, nobody can sign in until either a real default homeserver exists or
+  QR/link login ([unicornops/family-chat#236](https://github.com/unicornops/family-chat/issues/236))
+  lands and carries the homeserver in the link.
+- `update_base_url` points at `https://packages.safechat.family/desktop/update/`, which is not
+  hosted yet.
+- Icons are generated from the website favicon and are "good enough for now", not a designed icon set.
+- Nothing is code-signed. macOS notarisation and Windows Azure Artifact Signing are tracked in
+  [unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235) §8.
+
+## Development
 
 1. [Developer guide](./developer_guide.md)
 2. [Code style](./code_style.md)
 3. [Contribution guide](./CONTRIBUTING.md)
 
-# Translations
+Commits follow Conventional Commits. Pull requests target `familychat`.
 
-To add a new translation, head to the [translating doc](docs/translating.md).
+Translations are not wired up: Localazy is Element's, and our `localazy.json` was removed. Change the
+English source strings in `apps/web/src/i18n/strings/en_EN.json` and
+`apps/desktop/src/i18n/strings/en_EN.json`; the other locales are inherited from upstream.
 
-For a developer guide, see the [translating dev doc](docs/translating-dev.md).
+## Monorepo
 
-# Triaging issues
+This repository is a monorepo. The structure is described in [docs/monorepo.md](docs/monorepo.md);
+the branch model there is Element's, ours is `familychat` plus feature branches.
 
-Issues are triaged by community members and the Web App Team, following the [triage process](https://github.com/element-hq/element-meta/wiki/Triage-process).
+- `apps/web` — the browser app ([README](apps/web/README.md))
+- `apps/desktop` — the Electron app ([README](apps/desktop/README.md))
+- `packages`, `modules` — libraries and optional modules maintained upstream
 
-We use [issue labels](https://github.com/element-hq/element-meta/wiki/Issue-labelling) to sort all incoming issues.
-
-## Copyright & License
+## Copyright & licence
 
 Copyright (c) 2014-2017 OpenMarket Ltd
 Copyright (c) 2017 Vector Creations Ltd
-Copyright (c) 2017-2025 New Vector Ltd
+Copyright (c) 2017-2026 New Vector Ltd / Element Creations Ltd
+Copyright (c) 2026 Unicorn Operations Ltd
 
-This software is multi licensed by New Vector Ltd (Element). It can be used either:
+Upstream Element Web is multi-licensed by Element under AGPL-3.0, GPL-3.0 or a paid Element
+Commercial Licence, and the source files keep their original
+`SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial` headers.
 
-(1) for free under the terms of the GNU Affero General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
+**Family Chat takes the AGPL-3.0 option and distributes this fork under AGPL-3.0-only.** Element's
+commercial licence is Element's offer to make, not ours, so `LICENSE-COMMERCIAL` has been removed
+from this repository; if you want a commercial licence for the upstream code, talk to Element.
 
-(2) for free under the terms of the GNU General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
+Unless required by applicable law or agreed to in writing, software distributed under the Licences
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See [LICENSE-AGPL-3.0](LICENSE-AGPL-3.0) for the specific language governing permissions
+and limitations.
 
-(3) under the terms of a paid-for Element Commercial License agreement between you and Element (the terms of which may vary depending on what you and Element have agreed to).
-Unless required by applicable law or agreed to in writing, software distributed under the Licenses is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the Licenses for the specific language governing permissions and limitations under the Licenses.
-
-Please contact [licensing@element.io](mailto:licensing@element.io) to purchase
-an Element commercial license for this software.
+Element, Element X, the Element logo and the Element name are trademarks of Element; this project is
+not affiliated with or endorsed by Element.
