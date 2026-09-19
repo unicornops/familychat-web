@@ -1,13 +1,13 @@
 {
-    "name": "element-web",
+    "name": "familychat-web",
     "version": "1.12.28",
-    "description": "Element: the future of secure communication",
-    "author": "New Vector Ltd.",
+    "description": "Family Chat: private family messaging, a fork of Element Web",
+    "author": "Unicorn Operations Ltd.",
     "repository": {
         "type": "git",
-        "url": "https://github.com/element-hq/element-web"
+        "url": "https://github.com/unicornops/familychat-web"
     },
-    "license": "SEE LICENSE IN README.md",
+    "license": "AGPL-3.0-only",
     "type": "module",
     "matrix_i18n_extra_translation_funcs": [
         "UserFriendlyError"
@@ -46,6 +46,7 @@
         "@formatjs/intl-segmenter": "^12.0.0",
         "@matrix-org/analytics-events": "^0.37.0",
         "@matrix-org/emojibase-bindings": "catalog:",
+        "@matrix-org/matrix-sdk-crypto-wasm": "^18.7.0",
         "@matrix-org/react-sdk-module-api": "^2.4.0",
         "@sentry/browser": "^10.0.0",
         "@types/png-chunks-extract": "^1.0.2",
@@ -83,7 +84,7 @@
         "maplibre-gl": "^5.0.0",
         "matrix-encrypt-attachment": "^1.0.3",
         "matrix-js-sdk": "42.4.0",
-        "matrix-widget-api": "^1.18.0",
+        "matrix-widget-api": "^1.19.0",
         "memoize-one": "^6.0.0",
         "mime": "^4.0.4",
         "opus-recorder": "^8.0.3",

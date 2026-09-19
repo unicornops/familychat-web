@@ -29,8 +29,8 @@ export function getBuildConfig(): BuildConfig {
     if (!buildConfig) {
         const packageJson = loadJsonFile(path.join(__dirname, "..", "package.json")) as JsonObject;
         buildConfig = {
-            appId: (packageJson["electron_appId"] as string) || "im.riot.app",
-            protocol: (packageJson["electron_protocol"] as string) || "io.element.desktop",
+            appId: (packageJson["electron_appId"] as string) || "family.safechat.desktop",
+            protocol: (packageJson["electron_protocol"] as string) || "familychat",
             windowsCertSubjectName: packageJson["electron_windows_cert_sn"] as string,
         };
     }

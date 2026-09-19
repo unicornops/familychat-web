@@ -1,0 +1,9 @@
+{
+    "appId": "family.safechat.desktop",
+    "name": "familychat",
+    "productName": "Family Chat",
+    "description": "Family Chat: private family messaging",
+    "protocols": ["familychat"],
+    "linux.executableName": "familychat",
+    "linux.deb.name": "familychat"
+}

@@ -1,0 +1,89 @@
+{
+    "update_base_url": "https://packages.safechat.family/desktop/update/",
+    "brand": "Family Chat",
+    "default_server_config": {
+        "m.homeserver": {
+            "base_url": "https://matrix.safechat.family",
+            "server_name": "safechat.family"
+        }
+    },
+    "disable_custom_urls": true,
+    "disable_guests": true,
+    "disable_3pid_login": true,
+    "show_labs_settings": false,
+    "mobile_guide_toast": false,
+    "enable_client_well_known_lookups": true,
+    "permalink_prefix": "https://app.safechat.family",
+    "web_base_url": "https://app.safechat.family/",
+    "integrations_ui_url": null,
+    "integrations_rest_url": null,
+    "integrations_widgets_urls": [],
+    "privacy_policy_url": "https://safechat.family/privacy/",
+    "help_url": "https://safechat.family/docs/",
+    "help_encryption_url": "https://safechat.family/docs/faq/",
+    "help_key_storage_url": "https://safechat.family/docs/faq/",
+    "terms_and_conditions_links": [
+        {
+            "text": "Privacy Policy",
+            "url": "https://safechat.family/privacy/"
+        },
+        {
+            "text": "Terms of Service",
+            "url": "https://safechat.family/terms/"
+        }
+    ],
+    "branding": {
+        "logo_link_url": "https://safechat.family",
+        "auth_header_logo_url": "themes/element/img/logos/element-logo.svg",
+        "welcome_background_url": "themes/element/img/backgrounds/welcome.jpg",
+        "auth_footer_links": [
+            {
+                "text": "Help",
+                "url": "https://safechat.family/docs/"
+            },
+            {
+                "text": "Control panel",
+                "url": "https://panel.safechat.family/"
+            },
+            {
+                "text": "Source code",
+                "url": "https://github.com/unicornops/familychat-web"
+            }
+        ]
+    },
+    "embedded_pages": {
+        "welcome_url": "welcome/welcome.html",
+        "home_url": "welcome/home.html"
+    },
+    "desktop_builds": {
+        "available": false,
+        "logo": "vector-icons/1024.png",
+        "url": "https://safechat.family/docs/guides/matrix-client-setup/"
+    },
+    "mobile_builds": {
+        "ios": null,
+        "android": null,
+        "fdroid": null
+    },
+    "element_call": {
+        "disable": true
+    },
+    "room_directory": {
+        "servers": []
+    },
+    "features": {
+        "feature_video_rooms": false,
+        "feature_element_call_video_rooms": false
+    },
+    "setting_defaults": {
+        "UIFeature.registration": false,
+        "UIFeature.voip": false,
+        "UIFeature.locationSharing": false,
+        "UIFeature.identityServer": false,
+        "UIFeature.thirdPartyId": false,
+        "UIFeature.feedback": false,
+        "UIFeature.shareSocial": false,
+        "UIFeature.allowCreatingPublicRooms": false,
+        "UIFeature.allowCreatingPublicSpaces": false
+    }
+}

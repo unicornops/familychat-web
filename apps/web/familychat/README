@@ -1,0 +1,8 @@
+This directory holds the config used for the official Family Chat web
+distribution (https://app.safechat.family).
+
+`config.json` is copied to the build root before `pnpm build`, e.g.
+
+    cp familychat/config.json config.json
+
+The desktop app uses its own config, see `apps/desktop/familychat`.
