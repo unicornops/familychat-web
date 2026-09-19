@@ -12,6 +12,6 @@ jobs:
               with:
                   script: |
                       const baseBranch = context.payload.pull_request.base.ref;
-                      if (!['develop', 'staging'].includes(baseBranch) && !baseBranch.startsWith('feat/')) {
+                      if (!['familychat'].includes(baseBranch) && !baseBranch.startsWith('feat/')) {
                           core.setFailed(`Invalid base branch: ${baseBranch}`);
                       }
