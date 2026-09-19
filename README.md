@@ -12,7 +12,7 @@ distributed under the AGPL-3.0. Everything that makes it a Matrix client is Elem
 this repository adds is the Family Chat branding, configuration and packaging.
 
 - Web client: <https://app.safechat.family> (hosted on Cloudflare Pages)
-- Desktop app: Windows, macOS and Linux via Electron, in [`apps/desktop`](apps/desktop)
+- Desktop app: Windows, macOS and Linux via Electron, in [`apps/desktop`](https://github.com/unicornops/familychat-web/tree/familychat/apps/desktop)
 - Marketing site and docs: <https://safechat.family>
 - Control panel: <https://panel.safechat.family>
 - Issues and planning live in [unicornops/family-chat](https://github.com/unicornops/family-chat), not here.
@@ -46,8 +46,8 @@ Prefer `config.json`, [skinning](docs/skinning.md) and [theming](docs/theming.md
 
 ## Building
 
-Node is pinned in [`.node-version`](.node-version) and pnpm in `devEngines` in
-[`package.json`](package.json).
+Node is pinned in [`.node-version`](https://github.com/unicornops/familychat-web/blob/familychat/.node-version) and pnpm in `devEngines` in
+[`package.json`](https://github.com/unicornops/familychat-web/blob/familychat/package.json).
 
 ```sh
 pnpm install
@@ -74,7 +74,7 @@ pnpm run build -- -l tar.gz deb --publish never
 ```
 
 Artifacts land in `apps/desktop/dist`. `VARIANT_PATH` selects the electron-builder variant and
-defaults to [`apps/desktop/familychat/build.json`](apps/desktop/familychat/build.json).
+defaults to [`apps/desktop/familychat/build.json`](https://github.com/unicornops/familychat-web/blob/familychat/apps/desktop/familychat/build.json).
 
 Do **not** use `pnpm run fetch`: it still downloads Element's release tarball from
 `github.com/element-hq`. Build the web app in-tree instead.
@@ -184,7 +184,7 @@ from this repository; if you want a commercial licence for the upstream code, ta
 
 Unless required by applicable law or agreed to in writing, software distributed under the Licences
 is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-implied. See [LICENSE-AGPL-3.0](LICENSE-AGPL-3.0) for the specific language governing permissions
+implied. See [LICENSE-AGPL-3.0](https://github.com/unicornops/familychat-web/blob/familychat/LICENSE-AGPL-3.0) for the specific language governing permissions
 and limitations.
 
 Element, Element X, the Element logo and the Element name are trademarks of Element; this project is

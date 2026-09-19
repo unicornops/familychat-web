@@ -19,7 +19,10 @@ export default {
         return [
             {
                 params: { id: "automations" },
-                content: await genWorkflowMermaid([root, path.join(root, "node_modules", "matrix-js-sdk")]),
+                // Upstream also graphs matrix-js-sdk's reusable workflows, which it has linked
+                // into the workspace root by scripts/layered.sh. This fork uses the released
+                // js-sdk package and none of its reusable workflows, so we only graph our own.
+                content: await genWorkflowMermaid([root]),
             },
         ];
     },
