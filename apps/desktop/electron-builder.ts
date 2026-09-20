@@ -48,6 +48,10 @@ interface ExtraMetadata extends Metadata {
     electron_appId: string;
     electron_protocol: string;
     electron_windows_cert_sn?: string;
+    // Electron reads `desktopName` out of the packaged package.json and uses it as the Linux
+    // app_id / WM_CLASS, and electron-builder reads it to name the .desktop file and to set
+    // StartupWMClass. See https://www.electron.build/linux#window-association-desktopname--syncdesktopname
+    desktopName: string;
 }
 
 /**
@@ -101,11 +105,27 @@ interface Configuration extends BaseConfiguration {
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration/configuration
  */
-const config: Omit<Writable<Configuration>, "electronFuses"> & {
+const config: Omit<Writable<Configuration>, "electronFuses" | "publish"> & {
     // Make all fuses required to ensure they are all explicitly specified
     electronFuses: Required<Configuration["electronFuses"]>;
+    // `Writable` strips `null` out of every field, but `publish: null` is exactly what we need here.
+    publish: BaseConfiguration["publish"];
 } = {
     appId: variant.appId,
+    /**
+     * We do not publish through electron-builder and we do not ship `electron-updater`.
+     *
+     * The desktop app self-updates on macOS and Windows via Electron's built-in Squirrel
+     * `autoUpdater`, pointed at `update_base_url` from config.json (see `src/updater.ts` and
+     * `docs/updates.md`); on Linux there is no in-app updater at all. None of the metadata
+     * electron-builder's publish providers emit (`app-update.yml`, `latest-*.yml`) is ever read.
+     *
+     * Left unset, electron-builder infers a GitHub provider from the `repository` field in
+     * package.json in order to write that dead auto-update metadata, and then demands `GH_TOKEN`.
+     * `null` turns the whole publish pipeline off, which is both correct and keeps unsigned CI
+     * builds token-free.
+     */
+    publish: null,
     asarUnpack: "**/*.node",
     electronFuses: {
         enableCookieEncryption: true,
@@ -136,9 +156,13 @@ const config: Omit<Writable<Configuration>, "electronFuses"> & {
         description: variant.description,
         electron_appId: variant.appId,
         electron_protocol: variant.protocols[0],
+        desktopName: `${variant.name}.desktop`, // familychat.desktop
     },
     linux: {
         target: ["tar.gz", "deb"],
+        // Name the .desktop file after `extraMetadata.desktopName` and set StartupWMClass to match,
+        // so desktop environments associate running windows with the launcher entry.
+        syncDesktopName: true,
         category: "Network;InstantMessaging;Chat",
         icon: "icon.png",
         executableName: variant.name, // familychat

@@ -61,7 +61,11 @@ jobs:
               run: |
                   # No native modules: electron-builder still expects the directory to exist.
                   mkdir -p .hak/hakModules
-                  pnpm run build -- -l tar.gz deb --publish never
+                  # No `--` after `build`: the package.json script is `nx build --`, so an extra
+                  # separator leaves electron-builder invoked as `electron-builder -- -l ...` and
+                  # yargs drops everything after `--` into argv._ — the flags below, `--publish
+                  # never` included, are then silently ignored.
+                  pnpm run build -l tar.gz deb --publish never
 
             - name: Assert the artifacts are branded Family Chat
               working-directory: apps/desktop
