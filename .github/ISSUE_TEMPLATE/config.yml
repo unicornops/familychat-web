@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-    - name: Questions & support
-      url: https://matrix.to/#/#element-web:matrix.org
-      about: Please ask and answer questions here.
-    - name: Bug report for the Element flatpak app
-      url: https://github.com/flathub/im.riot.Riot/issues
-      about: Please file bugs with the Flatpak application on the respective repository.
+    - name: Family Chat issue tracker
+      url: https://github.com/unicornops/family-chat/issues/new/choose
+      about: Please file all Family Chat issues, including client bugs, in the main repository.
+    - name: Help and guides
+      url: https://safechat.family/docs/
+      about: Setup guides, FAQ and online-safety resources for parents.
+    - name: Upstream Element Web issues
+      url: https://github.com/element-hq/element-web/issues
+      about: If the bug also happens in Element Web, report it upstream so everyone benefits.

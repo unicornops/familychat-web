@@ -32,9 +32,9 @@ function loadLocalConfigFile(location: string | undefined): JsonDocument {
 }
 
 const DEFAULTS = {
-    brand: "Element",
-    help_url: "https://element.io/help",
-    web_base_url: "https://app.element.io/",
+    brand: "Family Chat",
+    help_url: "https://safechat.family/docs/",
+    web_base_url: "https://app.safechat.family/",
 } satisfies DesktopConfigJson;
 
 function applyDefaults(conf: DesktopConfigJson): asserts conf is ConfigOptions {

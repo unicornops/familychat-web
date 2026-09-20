@@ -1,8 +1,9 @@
-![Build](https://github.com/element-hq/element-web/actions/workflows/build_desktop_and_deploy.yaml/badge.svg)
+![Build](https://github.com/unicornops/familychat-web/actions/workflows/build_desktop_linux.yaml/badge.svg?branch=familychat)
 
-# Element Desktop
+# Family Chat Desktop
 
-Element Desktop is a Matrix client for desktop platforms with Element Web at its core.
+Family Chat Desktop is the Electron wrapper around the Family Chat web app. It is a fork of
+Element Desktop; see the [repository README](../../README.md) for provenance and licensing.
 
 # First Steps
 
@@ -12,45 +13,27 @@ Before you do anything else, fetch the dependencies:
 pnpm install
 ```
 
-# Fetching Element
+# Fetching the web app
 
-Since this package is just the Electron wrapper for Element Web, it doesn't contain any of the Element Web code,
-so the first step is to get a working copy of Element Web. There are a few ways of doing this:
-
-```
-# Fetch the prebuilt release Element package from the element-web GitHub releases page. The version
-# fetched will be the same as the local element-desktop package.
-# We're explicitly asking for no config, so the packaged Element will have no config.json.
-pnpm run fetch --noverify --cfgdir ""
-```
-
-...or if you'd like to use GPG to verify the downloaded package:
+This package is only the Electron wrapper, so it needs a built copy of the web app first.
+Build it in-tree:
 
 ```
-# Fetch the Element public key from the element.io web server over a secure connection and import
-# it into your local GPG keychain (you'll need GPG installed). You only need to to do this
-# once.
-pnpm run fetch --importkey
-# Fetch the package and verify the signature
-pnpm run fetch --cfgdir ""
+pnpm --filter familychat-web build
+cp -r ../web/webapp ./webapp
+pnpm run asar-webapp
 ```
 
-...or either of the above, but fetching a specific version of Element:
-
-```
-# Fetch the prebuilt release Element package from the element-web GitHub releases page. The version
-# fetched will be the same as the local element-desktop package.
-pnpm run fetch --noverify --cfgdir "" v1.5.6
-```
-
-If you only want to run the app locally and don't need to build packages, you can
-provide the `webapp` directory directly:
+Or, for development, symlink it instead of packing an asar:
 
 ```
 ln -s ../web/webapp ./
 ```
 
-[TODO: add support for fetching develop builds, arbitrary URLs and arbitrary paths]
+> [!WARNING]
+> Do **not** use `pnpm run fetch`. It still downloads Element's release tarball from
+> `github.com/element-hq` and verifies it against Element's signing key. Rewiring it to our own
+> releases is tracked in [unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235).
 
 # Building
 
@@ -58,8 +41,10 @@ ln -s ../web/webapp ./
 
 TODO: List native pre-requisites
 
-Optionally, [build the native modules](https://github.com/element-hq/element-web/blob/develop/docs/native-node-modules.md),
-which include support for searching in encrypted rooms and secure storage. Skipping this step is fine, you just won't have those features.
+Optionally, [build the native modules](../../docs/native-node-modules.md), which include support
+for searching in encrypted rooms and secure storage. Skipping this step is fine, you just won't
+have those features; CI skips it, so CI artifacts do not have them either. electron-builder still
+expects the directory to exist, so `mkdir -p .hak/hakModules` if you skip it.
 
 Then, run
 
@@ -70,7 +55,7 @@ pnpm run build
 This will do a couple of things:
 
 - Run the `setversion` script to set the local package version to match whatever
-  version of Element you installed above.
+  version of the web app you installed above.
 - Run electron-builder to build a package. The package built will match the operating system
   you're running the build process on.
 
@@ -100,24 +85,17 @@ pnpm start
 
 # Config
 
-If you'd like the packaged Element to have a configuration file, you can create a
-config directory and place `config.json` in there, then specify this directory
-with the `--cfgdir` option to `pnpm run fetch`, eg:
-
-```
-mkdir myconfig
-cp /path/to/my/config.json myconfig/
-pnpm run fetch --cfgdir myconfig
-```
-
-The config dir for the official Element app is in `element.io`. If you use this,
-your app will auto-update itself using builds from element.io.
+The config baked into a package is the `config.json` sitting next to the packed web app. The
+config for the official Family Chat builds is in [`familychat/`](https://github.com/unicornops/familychat-web/tree/familychat/apps/desktop/familychat), alongside
+`build.json`, the electron-builder variant that `VARIANT_PATH` selects (and which
+`electron-builder.ts` uses by default). Building with it points the app at the Family Chat update
+feed, so you probably only want it for official builds.
 
 # Profiles
 
 To run multiple instances of the desktop app for different accounts, you can
 launch the executable with the `--profile` argument followed by a unique
-identifier, e.g `element-desktop --profile Work` for it to run a separate profile and
+identifier, e.g `familychat --profile Work` for it to run a separate profile and
 not interfere with the default one.
 
 Alternatively, a custom location for the profile data can be specified using the
@@ -129,40 +107,28 @@ Alternatively, a custom location for the profile data can be specified using the
 - `$XDG_CONFIG_HOME/$NAME/config.json` or `~/.config/$NAME/config.json` on Linux
 - `~/Library/Application Support/$NAME/config.json` on macOS
 
-In the paths above, `$NAME` is typically `Element`, unless you use `--profile
-$PROFILE` in which case it becomes `Element-$PROFILE`, or it is using one of
-the above created by a pre-1.7 install, in which case it will be `Riot` or
-`Riot-$PROFILE`.
+In the paths above, `$NAME` is typically `Family Chat`, unless you use `--profile
+$PROFILE` in which case it becomes `Family Chat-$PROFILE`.
 
 You may also specify a different path entirely for the `config.json` file by
 providing the `--config $YOUR_CONFIG_JSON_FILE` to the process, or via the
-`ELEMENT_DESKTOP_CONFIG_JSON` environment variable.
+`ELEMENT_DESKTOP_CONFIG_JSON` environment variable (the variable keeps its upstream name).
 
 # Translations
 
-To add a new translation, head to the [translating doc](https://github.com/vector-im/element-web/blob/develop/docs/translating.md).
-
-For a developer guide, see the [translating dev doc](https://github.com/vector-im/element-web/blob/develop/docs/translating-dev.md).
+Localazy is Element's, so only the English source strings in `src/i18n/strings/en_EN.json` are
+maintained here; the other locales are inherited from upstream. For a developer guide, see the
+[translating dev doc](../../docs/translating-dev.md).
 
 # Report bugs & give feedback
 
-If you run into any bugs or have feedback you'd like to share, please let us know on GitHub.
+Family Chat issues are tracked in
+[unicornops/family-chat](https://github.com/unicornops/family-chat/issues). If the bug also happens
+in Element Desktop, please report it [upstream](https://github.com/element-hq/element-web/issues)
+so everyone benefits.
 
-To help avoid duplicate issues, please [view existing issues](https://github.com/vector-im/element-web/issues?q=is%3Aopen+is%3Aissue+sort%3Areactions-%2B1-desc) first (and add a +1) or [create a new issue](https://github.com/vector-im/element-web/issues/new/choose) if you can't find it. Please note that this issue tracker is associated with the [element-web](https://github.com/vector-im/element-web) repo, but is also applied to the code in this repo as well.
+## Copyright & Licence
 
-## Copyright & License
-
-Copyright (c) 2016-2017 OpenMarket Ltd
-
-Copyright (c) 2017 Vector Creations Ltd
-
-Copyright (c) 2017-2025 New Vector Ltd
-
-This software is multi licensed by New Vector Ltd (Element). It can be used either:
-
-(1) for free under the terms of the GNU Affero General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
-
-(2) for free under the terms of the GNU General Public License (as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version); OR
-
-(3) under the terms of a paid-for Element Commercial License agreement between you and Element (the terms of which may vary depending on what you and Element have agreed to).
-Unless required by applicable law or agreed to in writing, software distributed under the Licenses is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the Licenses for the specific language governing permissions and limitations under the Licenses.
+See [Copyright & licence](../../README.md#copyright--licence) in the repository README. Upstream
+Element Desktop is multi-licensed by Element under AGPL-3.0, GPL-3.0 or a paid Element Commercial
+Licence; Family Chat takes the AGPL-3.0 option.

@@ -24,6 +24,7 @@ import Modal from "../../Modal";
 import DesktopCapturerSourcePicker from "../../components/views/elements/DesktopCapturerSourcePicker";
 import ElectronPlatform from "./ElectronPlatform";
 import ToastStore from "../../stores/ToastStore.ts";
+import SdkConfig, { type ConfigOptions } from "../../SdkConfig.ts";
 
 vi.mock("../../rageshake/rageshake", () => ({
     flush: vi.fn(),
@@ -58,6 +59,7 @@ describe("ElectronPlatform", () => {
     beforeEach(() => {
         window.electron = mockElectron;
         vi.clearAllMocks();
+        SdkConfig.reset();
         Object.defineProperty(window, "navigator", { value: { userAgent: defaultUserAgent }, writable: true });
     });
 
@@ -201,23 +203,41 @@ describe("ElectronPlatform", () => {
             [
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
                     "(KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36",
-                "Element Desktop: macOS",
+                "Family Chat Desktop: macOS",
             ],
             [
                 "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
                     "electron/1.0.0 Chrome/53.0.2785.113 Electron/1.4.3 Safari/537.36",
-                "Element Desktop: Windows",
+                "Family Chat Desktop: Windows",
             ],
-            ["Mozilla/5.0 (X11; Linux i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Element Desktop: Linux"],
-            ["Mozilla/5.0 (X11; FreeBSD i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Element Desktop: FreeBSD"],
-            ["Mozilla/5.0 (X11; OpenBSD i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Element Desktop: OpenBSD"],
-            ["Mozilla/5.0 (X11; SunOS i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Element Desktop: SunOS"],
-            ["custom user agent", "Element Desktop: Unknown"],
+            ["Mozilla/5.0 (X11; Linux i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Family Chat Desktop: Linux"],
+            ["Mozilla/5.0 (X11; FreeBSD i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Family Chat Desktop: FreeBSD"],
+            ["Mozilla/5.0 (X11; OpenBSD i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Family Chat Desktop: OpenBSD"],
+            ["Mozilla/5.0 (X11; SunOS i686; rv:21.0) Gecko/20100101 Firefox/21.0", "Family Chat Desktop: SunOS"],
+            ["custom user agent", "Family Chat Desktop: Unknown"],
         ])("%s = %s", (userAgent, result) => {
             Object.defineProperty(window, "navigator", { value: { userAgent }, writable: true });
             const platform = new ElectronPlatform();
             expect(platform.getDefaultDeviceDisplayName()).toEqual(result);
         });
+    });
+
+    describe("baseUrl", () => {
+        it("defaults to the Family Chat web app", () => {
+            const platform = new ElectronPlatform();
+            expect(platform.baseUrl).toBe("https://app.safechat.family");
+        });
+
+        it("uses web_base_url from the config when set", () => {
+            SdkConfig.put({ web_base_url: "https://chat.example.org/" } as ConfigOptions);
+            const platform = new ElectronPlatform();
+            expect(platform.baseUrl).toBe("https://chat.example.org/");
+        });
+    });
+
+    it("defaults the OAuth client URI to safechat.family", () => {
+        const platform = new ElectronPlatform();
+        expect(platform.defaultOAuthClientUri).toBe("https://safechat.family");
     });
 
     it("returns true for needsUrlTooltips", () => {

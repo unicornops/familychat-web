@@ -108,24 +108,30 @@ export default class HelpUserSettingsTab extends React.Component<EmptyObject, IS
                     <ul>
                         <li>
                             {_t(
-                                "credits|default_cover_photo",
+                                "credits|familychat_fork_of_element",
                                 {},
                                 {
-                                    photo: (sub) => (
+                                    upstream: (sub) => (
                                         <ExternalLink
-                                            href="themes/element/img/backgrounds/lake.jpg"
+                                            href="https://github.com/element-hq/element-web"
                                             rel="noreferrer noopener"
                                             target="_blank"
                                         >
                                             {sub}
                                         </ExternalLink>
                                     ),
-                                    author: (sub) => (
-                                        <ExternalLink href="https://www.flickr.com/golan">{sub}</ExternalLink>
-                                    ),
                                     terms: (sub) => (
                                         <ExternalLink
-                                            href="https://creativecommons.org/licenses/by-sa/4.0/"
+                                            href="https://www.gnu.org/licenses/agpl-3.0.html"
+                                            rel="noreferrer noopener"
+                                            target="_blank"
+                                        >
+                                            {sub}
+                                        </ExternalLink>
+                                    ),
+                                    source: (sub) => (
+                                        <ExternalLink
+                                            href="https://github.com/unicornops/familychat-web"
                                             rel="noreferrer noopener"
                                             target="_blank"
                                         >

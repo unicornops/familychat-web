@@ -33,7 +33,7 @@ exports[`<SessionRestoreErrorDialog /> > should render 1`] = `
         We encountered an error trying to restore your session.
       </p>
       <p>
-        If you have previously used a more recent version of Element, your session may be incompatible with this version. Close this window and return to the more recent version.
+        If you have previously used a more recent version of Family Chat, your session may be incompatible with this version. Close this window and return to the more recent version.
       </p>
       <p>
         Clearing your browser's storage may fix the problem, but will remove this device and cause any encrypted chat history to become unreadable.

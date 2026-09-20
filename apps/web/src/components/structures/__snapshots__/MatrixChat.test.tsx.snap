@@ -122,7 +122,7 @@ exports[`<MatrixChat /> > Multi-tab lockout > waits for other tab to stop during
 <div>
   <div
     class="mx_AuthPage"
-    style="background: url("themes/element/img/backgrounds/lake.jpg") center center / cover fixed;"
+    style="background: url("themes/element/img/backgrounds/welcome.jpg") center center / cover fixed;"
   >
     <div
       class="mx_AuthPage_modal"
@@ -145,7 +145,7 @@ exports[`<MatrixChat /> > Multi-tab lockout > waits for other tab to stop during
             >
               <a
                 class="mx_DefaultWelcome_logo"
-                href="https://element.io"
+                href="https://safechat.family"
                 rel="noopener"
                 target="_blank"
               >
@@ -413,7 +413,7 @@ exports[`<MatrixChat /> > with a soft-logged-out session > should show the soft-
 <div>
   <div
     class="mx_AuthPage"
-    style="background: url("themes/element/img/backgrounds/lake.jpg") center center / cover fixed;"
+    style="background: url("themes/element/img/backgrounds/welcome.jpg") center center / cover fixed;"
   >
     <div
       class="mx_AuthPage_modal mx_AuthPage_modal_withBlur"
@@ -421,7 +421,7 @@ exports[`<MatrixChat /> > with a soft-logged-out session > should show the soft-
     >
       <div
         class="mx_AuthPage_modalBlur"
-        style="position: absolute; top: 0px; right: 0px; bottom: 0px; left: 0px; filter: blur(40px); background: url("themes/element/img/backgrounds/lake.jpg") center center / cover fixed;"
+        style="position: absolute; top: 0px; right: 0px; bottom: 0px; left: 0px; filter: blur(40px); background: url("themes/element/img/backgrounds/welcome.jpg") center center / cover fixed;"
       />
       <main
         aria-live="polite"

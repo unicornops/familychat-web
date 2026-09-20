@@ -23,14 +23,14 @@ exports[`<EventIndexPanel /> > when event indexing is not supported > renders li
     class="mx_SettingsSubsection_text"
   >
     <span>
-      Element can't securely cache encrypted messages locally while running in a web browser. Use 
+      Family Chat can't securely cache encrypted messages locally while running in a web browser. Use 
       <a
         class="mx_ExternalLink"
-        href="https://element.io/download"
+        href="https://safechat.family/docs/guides/matrix-client-setup/"
         rel="noreferrer noopener"
         target="_blank"
       >
-        Element Desktop
+        Family Chat Desktop
         <svg
           class="mx_ExternalLink_icon"
           fill="currentColor"
@@ -59,7 +59,7 @@ exports[`<EventIndexPanel /> > when event indexing is supported but not installe
     class="mx_SettingsSubsection_text"
   >
     <span>
-      Element is missing some components required for securely caching encrypted messages locally. If you'd like to experiment with this feature, build a custom Element Desktop with 
+      Family Chat is missing some components required for securely caching encrypted messages locally. If you'd like to experiment with this feature, build a custom Family Chat Desktop with 
       <a
         class="mx_ExternalLink"
         href="https://github.com/element-hq/element-web/blob/develop/docs/native-node-modules.md#adding-seshat-for-search-in-e2e-encrypted-rooms"
