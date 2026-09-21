@@ -36,6 +36,8 @@ import { encryptPickleKey } from "./utils/tokens/pickling";
 import * as StorageManager from "./utils/StorageManager.ts";
 import type BasePlatform from "./BasePlatform.ts";
 import * as createMatrixClientModule from "./utils/createMatrixClient";
+import SdkConfig from "./SdkConfig";
+import ErrorDialog from "./components/views/dialogs/ErrorDialog";
 
 const { logout, restoreSessionFromStorage, setLoggedIn } = Lifecycle;
 
@@ -169,6 +171,141 @@ describe("Lifecycle", () => {
             await expect(prom).resolves.toBeFalsy();
 
             expect(Modal.createDialog).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("attemptTokenLogin()", () => {
+        const loginToken = "test-login-token";
+        const linkHost = "smith.safechat.family";
+        const linkLoginUrl = `https://${linkHost}/_matrix/client/v3/login`;
+        const loginResponse = { user_id: userId, device_id: deviceId, access_token: accessToken };
+
+        beforeEach(() => {
+            initIdbMock();
+            fetchMock.clearHistory();
+            // stub the error dialog
+            vi.spyOn(Modal, "createDialog").mockReturnValue(
+                // @ts-ignore allow bad mock
+                { finished: Promise.resolve([true]) },
+            );
+            SdkConfig.put({ homeserver_allowlist: ["*.safechat.family"] });
+        });
+
+        afterEach(() => {
+            SdkConfig.reset();
+        });
+
+        const loginRequestsTo = (url: string) => fetchMock.callHistory.calls(url, { method: "POST" });
+
+        it("does nothing without a login token", async () => {
+            await expect(Lifecycle.attemptTokenLogin({ hs: linkHost })).resolves.toBe(false);
+            await expect(Lifecycle.attemptTokenLogin(undefined)).resolves.toBe(false);
+            expect(Modal.createDialog).not.toHaveBeenCalled();
+        });
+
+        describe("with a Family Chat sign-in link (hs given)", () => {
+            it("redeems the token against https://<hs> and ignores the stored SSO homeserver", async () => {
+                localStorage.setItem("mx_sso_hs_url", "https://stale.sso.example");
+                fetchMock.postOnce(linkLoginUrl, loginResponse);
+
+                await expect(
+                    Lifecycle.attemptTokenLogin({ loginToken, hs: linkHost }, "Family Chat (Web)"),
+                ).resolves.toBe(true);
+
+                const [call] = loginRequestsTo(linkLoginUrl);
+                expect(JSON.parse(call.options.body as string)).toEqual({
+                    type: "m.login.token",
+                    token: loginToken,
+                    initial_device_display_name: "Family Chat (Web)",
+                });
+                expect(loginRequestsTo("https://stale.sso.example/_matrix/client/v3/login")).toHaveLength(0);
+                expect(Modal.createDialog).not.toHaveBeenCalled();
+
+                // the session is persisted against the link's homeserver
+                expect(localStorage.getItem("mx_hs_url")).toBe(`https://${linkHost}`);
+                expect(localStorage.getItem("mx_user_id")).toBe(userId);
+            });
+
+            it("tells the user the code was used or expired when the homeserver rejects it", async () => {
+                fetchMock.postOnce(linkLoginUrl, {
+                    status: 403,
+                    body: { errcode: "M_FORBIDDEN", error: "Invalid login token" },
+                });
+
+                await expect(Lifecycle.attemptTokenLogin({ loginToken, hs: linkHost })).resolves.toBe(false);
+
+                expect(Modal.createDialog).toHaveBeenCalledWith(
+                    ErrorDialog,
+                    expect.objectContaining({
+                        description:
+                            "That sign-in code has already been used or has expired. Ask a parent for a new code from the control panel, or sign in with your password.",
+                        // nothing to retry: no SSO flow behind a sign-in link
+                        button: "OK",
+                    }),
+                );
+                expect(localStorage.getItem("mx_user_id")).toBeNull();
+            });
+
+            it("never logs the token", async () => {
+                fetchMock.postOnce(linkLoginUrl, {
+                    status: 403,
+                    body: { errcode: "M_FORBIDDEN", error: "Invalid login token" },
+                });
+                const errorSpy = vi.spyOn(logger, "error");
+
+                await Lifecycle.attemptTokenLogin({ loginToken, hs: linkHost });
+
+                for (const call of errorSpy.mock.calls) {
+                    expect(JSON.stringify(call)).not.toContain(loginToken);
+                }
+            });
+
+            it.each([
+                ["a URL", "https://smith.safechat.family"],
+                ["a path", "smith.safechat.family/x"],
+                ["userinfo", "user@smith.safechat.family"],
+                ["a host outside the allowlist", "evil.example"],
+                ["the bare suffix", "safechat.family"],
+                ["an empty value", ""],
+            ])("refuses to send the token anywhere when hs is %s", async (_label, hs) => {
+                localStorage.setItem("mx_sso_hs_url", "https://stale.sso.example");
+
+                await expect(Lifecycle.attemptTokenLogin({ loginToken, hs })).resolves.toBe(false);
+
+                expect(fetchMock.callHistory.calls("end:/_matrix/client/v3/login")).toHaveLength(0);
+                expect(Modal.createDialog).toHaveBeenCalledWith(
+                    ErrorDialog,
+                    expect.objectContaining({
+                        description:
+                            "This sign-in link is not valid. Ask a parent for a new sign-in code from the control panel, or sign in with your password.",
+                        button: "OK",
+                    }),
+                );
+            });
+        });
+
+        describe("without hs (upstream SSO callback)", () => {
+            it("still uses the homeserver remembered in local storage", async () => {
+                localStorage.setItem("mx_sso_hs_url", "https://sso.example");
+                const ssoLoginUrl = "https://sso.example/_matrix/client/v3/login";
+                fetchMock.postOnce(ssoLoginUrl, loginResponse);
+
+                await expect(Lifecycle.attemptTokenLogin({ loginToken })).resolves.toBe(true);
+
+                expect(loginRequestsTo(ssoLoginUrl)).toHaveLength(1);
+                expect(Modal.createDialog).not.toHaveBeenCalled();
+            });
+
+            it("keeps offering to try again when the stored homeserver is missing", async () => {
+                await expect(Lifecycle.attemptTokenLogin({ loginToken })).resolves.toBe(false);
+
+                expect(Modal.createDialog).toHaveBeenCalledWith(
+                    ErrorDialog,
+                    expect.objectContaining({
+                        description: expect.stringContaining("your browser has forgotten it"),
+                    }),
+                );
+            });
         });
     });
 

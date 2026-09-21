@@ -4,6 +4,7 @@ Copyright 2019, 2020 , 2023 The Matrix.org Foundation C.I.C.
 Copyright 2018 New Vector Ltd
 Copyright 2017 Vector Creations Ltd
 Copyright 2015, 2016 OpenMarket Ltd
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -65,6 +66,7 @@ import {
 } from "./utils/tokens/tokens";
 import { checkBrowserSupport } from "./SupportedBrowser";
 import { type URLParams } from "./vector/url_utils.ts";
+import { parseLoginLinkHomeserver } from "./utils/LoginLink";
 import { type OnLoggedInPayload } from "./dispatcher/payloads/OnLoggedInPayload.ts";
 import { filterBoolean } from "./utils/arrays.ts";
 import { clearUploadedMediaCache } from "./utils/UploadedMediaCache";
@@ -386,12 +388,29 @@ export function attemptTokenLogin(
 
     console.log("We have token login params - attempting token login");
 
-    const homeserver = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
-    const identityServer = localStorage.getItem(SSO_ID_SERVER_URL_KEY) ?? undefined;
-    if (!homeserver) {
-        logger.warn("Cannot log in with token: can't determine HS URL to use");
-        onFailedDelegatedAuthLogin(_t("auth|sso_failed_missing_storage"));
-        return Promise.resolve(false);
+    let homeserver: string;
+    let identityServer: string | undefined;
+    // Family Chat sign-in link: the link names the homeserver in `hs`, nothing is read from storage
+    // and there is no SSO flow to retry. Absent `hs`, this is upstream's SSO callback.
+    const isLoginLink = urlParams.hs !== undefined;
+    if (isLoginLink) {
+        const linkHomeserver = parseLoginLinkHomeserver(urlParams.hs);
+        if (!linkHomeserver.ok) {
+            // The token is never sent anywhere the link could not have named legitimately.
+            logger.warn(`Cannot log in with token: the hs parameter was rejected (${linkHomeserver.reason})`);
+            onFailedDelegatedAuthLogin(_t("auth|login_link_invalid"));
+            return Promise.resolve(false);
+        }
+        homeserver = linkHomeserver.url;
+    } else {
+        const storedHomeserver = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
+        identityServer = localStorage.getItem(SSO_ID_SERVER_URL_KEY) ?? undefined;
+        if (!storedHomeserver) {
+            logger.warn("Cannot log in with token: can't determine HS URL to use");
+            onFailedDelegatedAuthLogin(_t("auth|sso_failed_missing_storage"));
+            return Promise.resolve(false);
+        }
+        homeserver = storedHomeserver;
     }
 
     return sendLoginRequest(homeserver, identityServer, "m.login.token", {
@@ -404,6 +423,20 @@ export function attemptTokenLogin(
             return true;
         })
         .catch((error) => {
+            if (isLoginLink) {
+                // A sign-in code is single-use and short-lived: the homeserver answers a replay or an expired
+                // code with 403. Either way the user needs a new code or their password; the token itself is
+                // never logged.
+                const codeRejected = error?.httpStatus === 401 || error?.httpStatus === 403;
+                onFailedDelegatedAuthLogin(
+                    codeRejected
+                        ? _t("auth|login_link_code_rejected")
+                        : messageForLoginError(error, { hsUrl: homeserver, hsName: new URL(homeserver).host }),
+                );
+                logger.error("Failed to log in with the sign-in link's token:", error?.errcode ?? error);
+                return false;
+            }
+
             const tryAgainCallback: TryAgainFunction = () => {
                 const cli = createClient({
                     baseUrl: homeserver,
@@ -483,7 +516,8 @@ function onFailedDelegatedAuthLogin(description: string | ReactNode, tryAgain?: 
     const { finished } = Modal.createDialog(ErrorDialog, {
         title: _t("auth|oidc|error_title"),
         description,
-        button: _t("action|try_again"),
+        // Only offer "Try again" when there is something to retry
+        button: tryAgain ? _t("action|try_again") : _t("action|ok"),
     });
 
     void finished.then(([shouldTryAgain]) => {

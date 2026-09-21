@@ -2,6 +2,7 @@
 Copyright 2024 New Vector Ltd.
 Copyright 2019-2022 The Matrix.org Foundation C.I.C.
 Copyright 2016 OpenMarket Ltd
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -19,6 +20,13 @@ import { type DEFAULTS } from "./SdkConfig.ts";
 export const BugReportEndpointURLLocal = "local";
 
 export interface ConfigOptions extends WebConfigJson {
+    /**
+     * Family Chat: hosts this client may sign in to, as hostnames or `*.suffix` wildcards
+     * (e.g. `["*.safechat.family"]`). Applies to the server picker and to the `hs` parameter of a
+     * sign-in link. Absent or empty means any host, as upstream. See docs/config.md.
+     */
+    homeserver_allowlist?: string[];
+
     /**
      * This is not a real config field, we're just abusing the config structure to pass around a validated server config
      */

@@ -66,6 +66,22 @@ information.
    `default_server_config` with `disable_custom_urls: true` fixes the homeserver and removes the server picker, covering
    the startup lookup and server selection. It also doesn't cover the legacy password login form (not shown for delegated authentication/OIDC) which performs its own `.well-known` lookup when a full Matrix ID is entered.
 
+### Family Chat: `homeserver_allowlist` and sign-in links
+
+Family Chat runs one homeserver per family under `<slug>.safechat.family`, so the fork adds:
+
+1. `homeserver_allowlist`: an array of hostnames the client may sign in to; a leading `*.` matches any subdomain
+   (`["*.safechat.family"]`). It applies to the server picker (anything else is refused before any network
+   request) and to the `hs` parameter below. Absent or empty, any host is allowed as upstream. It does not
+   validate `default_server_config`, which may stay a placeholder that the picker replaces.
+2. The `hs` query parameter next to `loginToken`: `https://app.safechat.family/?loginToken=<token>&hs=<host>`.
+   This is what the website's `/app/login/` fallback page emits for a control-panel sign-in code (contract:
+   `docs/client-login-links.md` in unicornops/family-chat). `hs` is a bare hostname, optionally `:port`; the
+   token is redeemed with `m.login.token` against `https://<hs>` instead of the homeserver remembered from an SSO
+   redirect, and both parameters are stripped from the URL afterwards. If the code was already used or has
+   expired the user is told so and lands on the password form with that homeserver selected. A malformed `hs`,
+   or one outside `homeserver_allowlist`, means the token is not sent anywhere.
+
 ## Labs flags
 
 Labs flags are optional, typically beta or in-development, features that can be turned on or off. The full range of

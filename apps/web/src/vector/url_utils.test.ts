@@ -45,6 +45,12 @@ describe("parseUrlParameters", () => {
         expect(parsed.params.legacy_sso?.loginToken).toEqual("foobar");
     });
 
+    it("should parse the sign-in link homeserver alongside the login token", () => {
+        const u = new URL("https://app.safechat.family/?loginToken=foobar&hs=smith.safechat.family");
+        const parsed = parseAppUrl(u);
+        expect(parsed.params.legacy_sso).toEqual({ loginToken: "foobar", hs: "smith.safechat.family" });
+    });
+
     it("should parse oauth2 parameters from fragment", () => {
         const u = new URL("https://app.element.io/#code=foobar&state=barfoo");
         const parsed = parseAppUrl(u);

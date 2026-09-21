@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2020, 2021 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -20,6 +21,11 @@ import StyledRadioButton from "../elements/StyledRadioButton";
 import TextWithTooltip from "../elements/TextWithTooltip";
 import withValidation, { type IFieldState, type IValidationResult } from "../elements/Validation";
 import { type ValidatedServerConfig } from "../../../utils/ValidatedServerConfig";
+import {
+    hostFromServerInput,
+    homeserverNotAllowedMessage,
+    isAllowedHomeserverHost,
+} from "../../../utils/HomeserverAllowlist";
 import ExternalLink from "../elements/ExternalLink";
 
 interface IProps {
@@ -75,6 +81,13 @@ export default class ServerPickerDialog extends React.PureComponent<IProps, ISta
     private validate = withValidation<this, { error?: string }>({
         deriveData: async ({ value }): Promise<{ error?: string }> => {
             let hsUrl = (value ?? "").trim(); // trim to account for random whitespace
+
+            // Family Chat: refuse hosts outside `homeserver_allowlist` before touching the network, so
+            // neither a well-known lookup nor a password ever goes to a server we do not run.
+            const host = hostFromServerInput(hsUrl);
+            if (host !== undefined && !isAllowedHomeserverHost(host)) {
+                return { error: homeserverNotAllowedMessage() };
+            }
 
             // if the URL has no protocol, try validate it as a serverName via well-known
             if (!hsUrl.includes("://")) {

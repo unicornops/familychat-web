@@ -6,7 +6,7 @@ Please see LICENSE files in the repository root for full details.
 */
 
 // @vitest-environment happy-dom
-// @vitest-environment-options {"url": "https://app.element.io/?loginToken=123&no_universal_links&something_else=value#/home?state=abc&code=xyz"}
+// @vitest-environment-options {"url": "https://app.element.io/?loginToken=123&hs=smith.safechat.family&no_universal_links&something_else=value#/home?state=abc&code=xyz"}
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import fetchMock from "@fetch-mock/vitest";
@@ -78,7 +78,7 @@ describe("loadApp", () => {
         await waitFor(() => expect(delta()).toBe(0));
     });
 
-    it("should pass onTokenLoginCompleted which strips searchParams & fragment to MatrixChat", async () => {
+    it("should pass onTokenLoginCompleted which strips searchParams (incl. the sign-in link hs) & fragment to MatrixChat", async () => {
         const spy = vi.spyOn(window.history, "replaceState");
 
         await loadApp({});

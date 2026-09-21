@@ -1,5 +1,6 @@
 /*
 Copyright 2018-2024 New Vector Ltd.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -49,9 +50,10 @@ export function searchParamsToQueryDict(params: URLSearchParams): QueryDict {
 }
 
 const urlParameterConfig = {
-    // Query string params for legacy SSO login, added by the Matrix homeserver
+    // Query string params for legacy SSO login, added by the Matrix homeserver.
+    // Family Chat sign-in links add `hs`: the host to redeem `loginToken` against (see utils/LoginLink.ts).
     legacy_sso: {
-        keys: ["loginToken"],
+        keys: ["loginToken", "hs"],
         location: "query",
     },
     // Fragment params for OAuth2 login, added by the Identity Provider

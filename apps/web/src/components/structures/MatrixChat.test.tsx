@@ -20,6 +20,7 @@ import {
     OAuth2,
     type BearerTokenResponse,
     OAuth2Error,
+    MatrixError,
 } from "matrix-js-sdk/src/matrix";
 import { type MediaHandler } from "matrix-js-sdk/src/webrtc/mediaHandler";
 import * as MatrixJs from "matrix-js-sdk/src/matrix";
@@ -1645,6 +1646,61 @@ describe("<MatrixChat />", () => {
             expect(loginClient.login).toHaveBeenCalledWith("m.login.token", {
                 initial_device_display_name: undefined,
                 token: loginToken,
+            });
+        });
+
+        describe("from a Family Chat sign-in link (hs given)", () => {
+            const linkHost = "smith.safechat.family";
+            const linkUrlParams = { legacy_sso: { loginToken, hs: linkHost } };
+
+            it("should redeem the token against the link's homeserver, not the stored SSO one", async () => {
+                getComponent({ urlParams: linkUrlParams });
+                await flushPromises();
+
+                expect(MatrixJs.createClient).toHaveBeenCalledWith(
+                    expect.objectContaining({ baseUrl: `https://${linkHost}` }),
+                );
+                expect(loginClient.login).toHaveBeenCalledWith("m.login.token", {
+                    initial_device_display_name: undefined,
+                    token: loginToken,
+                });
+            });
+
+            it("should keep the link's homeserver selected for the password fallback when the code is rejected", async () => {
+                loginClient.login.mockRejectedValue(
+                    new MatrixError({ errcode: "M_FORBIDDEN", error: "Invalid login token" }, 403),
+                );
+                const onTokenLoginCompleted = vi.fn();
+                getComponent({ urlParams: linkUrlParams, onTokenLoginCompleted });
+                await flushPromises();
+
+                // the token is stripped from the URL regardless
+                expect(onTokenLoginCompleted).toHaveBeenCalled();
+                // and the family's homeserver becomes the login form's server
+                expect(AutoDiscoveryUtils.validateServerConfigWithStaticUrls).toHaveBeenCalledWith(
+                    `https://${linkHost}`,
+                    undefined,
+                    true,
+                );
+            });
+
+            it("should neither redeem the token against nor select a homeserver outside the allowlist", async () => {
+                getComponent({
+                    config: { ...defaultProps.config, homeserver_allowlist: ["*.safechat.family"] },
+                    urlParams: { legacy_sso: { loginToken, hs: "evil.example" } },
+                });
+                await flushPromises();
+
+                expect(loginClient.login).not.toHaveBeenCalled();
+                expect(AutoDiscoveryUtils.validateServerConfigWithStaticUrls).not.toHaveBeenCalledWith(
+                    "https://evil.example",
+                    undefined,
+                    true,
+                );
+                const dialog = await screen.findByRole("dialog");
+                expect(
+                    within(dialog).getByText("This sign-in link is not valid.", { exact: false }),
+                ).toBeInTheDocument();
             });
         });
 

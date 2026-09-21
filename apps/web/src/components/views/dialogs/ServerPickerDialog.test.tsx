@@ -12,7 +12,7 @@ import React from "react";
 import { fireEvent, render, screen } from "test-utils-rtl";
 import { flushPromises } from "test-utils";
 import fetchMock from "@fetch-mock/vitest";
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import ServerPickerDialog from "./ServerPickerDialog";
 import SdkConfig from "../../../SdkConfig";
@@ -167,6 +167,58 @@ describe("<ServerPickerDialog />", () => {
                 isDefault: false,
                 isNameResolvable: false,
                 isUrl: defaultServerConfig.isUrl,
+            });
+        });
+
+        describe("with a homeserver_allowlist", () => {
+            beforeEach(() => {
+                SdkConfig.add({ brand: "Family Chat", homeserver_allowlist: ["*.safechat.family"] });
+            });
+
+            afterEach(() => {
+                SdkConfig.reset();
+            });
+
+            it.each(["matrix.org", "https://matrix.org", "safechat.family", "evilsafechat.family"])(
+                "rejects %s without any network request",
+                async (input) => {
+                    const onFinished = vi.fn();
+                    const { container } = getComponent({ onFinished });
+
+                    fireEvent.change(getOtherHomeserverInput(), { target: { value: input } });
+                    fireEvent.click(screen.getByText("Continue"));
+                    await flushPromises();
+
+                    expect(fetchMock).not.toHaveFetched();
+                    expect(
+                        container.querySelector(".mx_ServerPickerDialog_otherHomeserver.mx_Field_invalid"),
+                    ).toBeTruthy();
+                    expect(
+                        screen.getByText(
+                            "Family Chat can only sign in to your family's own server, for example yourfamily.safechat.family.",
+                        ),
+                    ).toBeInTheDocument();
+                    expect(onFinished).not.toHaveBeenCalled();
+                },
+            );
+
+            it("accepts a family server name and resolves it as usual", async () => {
+                const homeserver = "smith.safechat.family";
+                fetchMock.get(`https://${homeserver}/.well-known/matrix/client`, {});
+                fetchMock.get(`https://${homeserver}/_matrix/client/versions`, {
+                    unstable_features: {},
+                    versions: SERVER_SUPPORTED_MATRIX_VERSIONS,
+                });
+                const onFinished = vi.fn();
+                getComponent({ onFinished });
+
+                fireEvent.change(getOtherHomeserverInput(), { target: { value: homeserver } });
+                fireEvent.click(screen.getByText("Continue"));
+                await flushPromises();
+
+                expect(onFinished).toHaveBeenCalledWith(
+                    expect.objectContaining({ hsUrl: `https://${homeserver}`, hsName: homeserver }),
+                );
             });
         });
 

@@ -93,7 +93,7 @@ export default class SoftLogout extends React.Component<IProps, IState> {
     };
 
     private async initLogin(): Promise<void> {
-        const hasAllParams = !!this.props.urlParams?.legacy_sso;
+        const hasAllParams = !!this.props.urlParams?.legacy_sso?.loginToken;
         if (hasAllParams) {
             this.setState({ loginView: LoginView.Loading });
 

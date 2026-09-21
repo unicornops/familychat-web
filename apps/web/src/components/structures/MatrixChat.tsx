@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2015-2024 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -138,6 +139,7 @@ import { isOnlyAdmin } from "../../utils/membership";
 import { ModuleApi } from "../../modules/Api.ts";
 import { type IScreen } from "../../vector/routing.ts";
 import { type URLParams } from "../../vector/url_utils.ts";
+import { parseLoginLinkHomeserver } from "../../utils/LoginLink";
 import { type QrLoginCredentials } from "../views/auth/LoginWithQR.tsx";
 import { configureFromCompletedOAuthLogin } from "../../Lifecycle";
 
@@ -337,6 +339,10 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         // remove the loginToken or auth code from the URL regardless
         if (!!this.props.urlParams.legacy_sso || !!this.props.urlParams.oauth2) {
             this.props.onTokenLoginCompleted(this.props.urlParams, this.getFragmentAfterLogin());
+        }
+
+        if (!delegatedAuthSucceeded && this.props.urlParams.legacy_sso?.hs !== undefined) {
+            await this.selectLoginLinkHomeserver(this.props.urlParams.legacy_sso.hs);
         }
 
         if (delegatedAuthSucceeded) {
@@ -950,6 +956,26 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         this.setState({
             page_type: pageType,
         });
+    }
+
+    /**
+     * A Family Chat sign-in link whose code could not be redeemed (used, expired, rejected) still names the
+     * family's homeserver, so keep that server selected for the password fallback instead of the placeholder
+     * default: the user then only has to type their password. Hosts outside `homeserver_allowlist` are ignored.
+     */
+    private async selectLoginLinkHomeserver(hs: string): Promise<void> {
+        const linkHomeserver = parseLoginLinkHomeserver(hs);
+        if (!linkHomeserver.ok) return;
+        try {
+            const serverConfig = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(
+                linkHomeserver.url,
+                undefined,
+                true,
+            );
+            this.setState({ serverConfig });
+        } catch (e) {
+            logger.warn("Failed to select the homeserver named by the sign-in link:", e);
+        }
     }
 
     private async startRegistration(params: { [key: string]: string }, isMobileRegistration?: boolean): Promise<void> {
