@@ -22,7 +22,8 @@ export const BugReportEndpointURLLocal = "local";
 export interface ConfigOptions extends WebConfigJson {
     /**
      * Family Chat: hosts this client may sign in to, as hostnames or `*.suffix` wildcards
-     * (e.g. `["*.safechat.family"]`). Applies to the server picker and to the `hs` parameter of a
+     * (e.g. `["*.safechat.family"]`), matched against the resolved https homeserver URL rather than the
+     * server name typed. Applies to the server picker, the login form, and the `hs` parameter of a
      * sign-in link. Absent or empty means any host, as upstream. See docs/config.md.
      */
     homeserver_allowlist?: string[];

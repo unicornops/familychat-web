@@ -22,9 +22,10 @@ import TextWithTooltip from "../elements/TextWithTooltip";
 import withValidation, { type IFieldState, type IValidationResult } from "../elements/Validation";
 import { type ValidatedServerConfig } from "../../../utils/ValidatedServerConfig";
 import {
+    hasHomeserverAllowlist,
     hostFromServerInput,
     homeserverNotAllowedMessage,
-    isAllowedHomeserverHost,
+    isAllowedHomeserverUrl,
 } from "../../../utils/HomeserverAllowlist";
 import ExternalLink from "../elements/ExternalLink";
 
@@ -80,63 +81,15 @@ export default class ServerPickerDialog extends React.PureComponent<IProps, ISta
 
     private validate = withValidation<this, { error?: string }>({
         deriveData: async ({ value }): Promise<{ error?: string }> => {
-            let hsUrl = (value ?? "").trim(); // trim to account for random whitespace
-
-            // Family Chat: refuse hosts outside `homeserver_allowlist` before touching the network, so
-            // neither a well-known lookup nor a password ever goes to a server we do not run.
-            const host = hostFromServerInput(hsUrl);
-            if (host !== undefined && !isAllowedHomeserverHost(host)) {
+            const result = await this.deriveServerConfig(value);
+            // Family Chat: whatever was typed, only accept it if the homeserver it resolved to (not the name
+            // typed) is allowlisted, so a password never goes to a server we do not run. A custom-domain
+            // family's server name passes because its .well-known delegates to `<slug>.safechat.family`.
+            if (!result.error && this.validatedConf && !isAllowedHomeserverUrl(this.validatedConf.hsUrl)) {
+                this.validatedConf = undefined;
                 return { error: homeserverNotAllowedMessage() };
             }
-
-            // if the URL has no protocol, try validate it as a serverName via well-known
-            if (!hsUrl.includes("://")) {
-                try {
-                    const discoveryResult = await AutoDiscovery.findClientConfig(hsUrl);
-                    this.validatedConf = await AutoDiscoveryUtils.buildValidatedConfigFromDiscovery(
-                        hsUrl,
-                        discoveryResult,
-                    );
-                    return {}; // we have a validated config, we don't need to try the other paths
-                } catch (e) {
-                    logger.error(`Attempted ${hsUrl} as a server_name but it failed`, e);
-                }
-            }
-
-            // if we got to this stage then either the well-known failed or the URL had a protocol specified,
-            // so validate statically only. If the URL has no protocol, default to https.
-            if (!hsUrl.includes("://")) {
-                hsUrl = "https://" + hsUrl;
-            }
-
-            try {
-                this.validatedConf = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(hsUrl);
-                return {};
-            } catch (e) {
-                logger.error(e);
-
-                const stateForError = AutoDiscoveryUtils.authComponentStateForError(e);
-                if (stateForError.serverErrorIsFatal) {
-                    let error = _t("auth|server_picker_failed_validate_homeserver");
-                    if (e instanceof UserFriendlyError && e.translatedMessage) {
-                        error = e.translatedMessage;
-                    }
-                    return { error };
-                }
-
-                // try to carry on anyway
-                try {
-                    this.validatedConf = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(
-                        hsUrl,
-                        undefined,
-                        true,
-                    );
-                    return {};
-                } catch (e) {
-                    logger.error(e);
-                    return { error: _t("auth|server_picker_invalid_url") };
-                }
-            }
+            return result;
         },
         rules: [
             {
@@ -156,6 +109,76 @@ export default class ServerPickerDialog extends React.PureComponent<IProps, ISta
             },
         ],
     });
+
+    private async deriveServerConfig(value: string | null | undefined): Promise<{ error?: string }> {
+        let hsUrl = (value ?? "").trim(); // trim to account for random whitespace
+
+        this.validatedConf = undefined;
+
+        // Family Chat: with `homeserver_allowlist` configured, refuse what cannot be allowed before touching
+        // the network: input with no parseable host (fail closed), a URL that is not https, or a URL whose
+        // host is not allowlisted. A bare server name is resolved first and judged by the resulting hsUrl.
+        if (hasHomeserverAllowlist()) {
+            const host = hostFromServerInput(hsUrl);
+            if (host === undefined) return { error: homeserverNotAllowedMessage() };
+            if (hsUrl.includes("://") && !isAllowedHomeserverUrl(hsUrl)) {
+                return { error: homeserverNotAllowedMessage() };
+            }
+        }
+
+        // if the URL has no protocol, try validate it as a serverName via well-known
+        if (!hsUrl.includes("://")) {
+            try {
+                const discoveryResult = await AutoDiscovery.findClientConfig(hsUrl);
+                // Family Chat: do not even probe a homeserver the well-known delegates to outside the allowlist
+                const discoveredHsUrl = discoveryResult["m.homeserver"]?.base_url;
+                if (discoveredHsUrl && !isAllowedHomeserverUrl(discoveredHsUrl)) {
+                    return { error: homeserverNotAllowedMessage() };
+                }
+                this.validatedConf = await AutoDiscoveryUtils.buildValidatedConfigFromDiscovery(hsUrl, discoveryResult);
+                return {}; // we have a validated config, we don't need to try the other paths
+            } catch (e) {
+                logger.error(`Attempted ${hsUrl} as a server_name but it failed`, e);
+            }
+        }
+
+        // if we got to this stage then either the well-known failed or the URL had a protocol specified,
+        // so validate statically only. If the URL has no protocol, default to https.
+        if (!hsUrl.includes("://")) {
+            hsUrl = "https://" + hsUrl;
+        }
+        // Family Chat: the server name did not delegate anywhere, so it is the hsUrl host itself
+        if (!isAllowedHomeserverUrl(hsUrl)) return { error: homeserverNotAllowedMessage() };
+
+        try {
+            this.validatedConf = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(hsUrl);
+            return {};
+        } catch (e) {
+            logger.error(e);
+
+            const stateForError = AutoDiscoveryUtils.authComponentStateForError(e);
+            if (stateForError.serverErrorIsFatal) {
+                let error = _t("auth|server_picker_failed_validate_homeserver");
+                if (e instanceof UserFriendlyError && e.translatedMessage) {
+                    error = e.translatedMessage;
+                }
+                return { error };
+            }
+
+            // try to carry on anyway
+            try {
+                this.validatedConf = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(
+                    hsUrl,
+                    undefined,
+                    true,
+                );
+                return {};
+            } catch (e) {
+                logger.error(e);
+                return { error: _t("auth|server_picker_invalid_url") };
+            }
+        }
+    }
 
     private onHomeserverValidate = (fieldState: IFieldState): Promise<IValidationResult> => this.validate(fieldState);
 

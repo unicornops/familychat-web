@@ -2,6 +2,7 @@
 Copyright 2024 New Vector Ltd.
 Copyright 2015-2021 The Matrix.org Foundation C.I.C.
 Copyright 2019 Michael Telatynski <7t3chguy@gmail.com>
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -25,6 +26,7 @@ import { getOAuthClientId } from "./utils/oauth/registerClient";
 import { type IConfigOptions } from "./IConfigOptions";
 import SdkConfig from "./SdkConfig";
 import { isUserRegistrationSupported } from "./utils/oauth/isUserRegistrationSupported";
+import { isAllowedHomeserverUrl } from "./utils/HomeserverAllowlist";
 
 /**
  * Login flows supported by this client
@@ -250,6 +252,10 @@ const tryInitOAuthNativeFlow = async (
  *
  * @returns {IMatrixClientCreds}
  */
+/** `fetch` that refuses to follow redirects: the matrix-js-sdk HTTP layer otherwise always follows them. */
+const fetchWithoutRedirects: typeof globalThis.fetch = (input, init) =>
+    globalThis.fetch(input, { ...init, redirect: "error" });
+
 export async function sendLoginRequest(
     hsUrl: string,
     isUrl: string | undefined,
@@ -259,14 +265,21 @@ export async function sendLoginRequest(
     const client = createClient({
         baseUrl: hsUrl,
         idBaseUrl: isUrl,
+        // Family Chat: a password or a one-time login token must reach the homeserver we chose (and checked
+        // against `homeserver_allowlist`), never wherever that server redirects the request to.
+        fetchFn: fetchWithoutRedirects,
     });
 
     const data = await client.login(loginType, loginParams);
 
     const wellknown = data.well_known;
     if (wellknown) {
-        if (wellknown["m.homeserver"]?.["base_url"]) {
-            hsUrl = wellknown["m.homeserver"]["base_url"];
+        const overrideHsUrl = wellknown["m.homeserver"]?.["base_url"];
+        if (overrideHsUrl && !isAllowedHomeserverUrl(overrideHsUrl)) {
+            // Family Chat: nor may the login response move the session to a server outside the allowlist
+            logger.warn(`Ignoring homeserver ${overrideHsUrl} from login response: not in homeserver_allowlist`);
+        } else if (overrideHsUrl) {
+            hsUrl = overrideHsUrl;
             logger.log(`Overrode homeserver setting with ${hsUrl} from login response`);
         }
         if (wellknown["m.identity_server"]?.["base_url"]) {

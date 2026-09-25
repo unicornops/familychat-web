@@ -10,9 +10,16 @@ import { _t } from "../languageHandler";
 
 /**
  * Family Chat runs one homeserver per family under `<slug>.safechat.family`. The `homeserver_allowlist`
- * config option restricts which hosts this client will sign in to, both through the server picker and
- * through the `hs` parameter of a sign-in link, so that a typo or a crafted link cannot send a password or
- * a one-time sign-in code to a server we do not run.
+ * config option restricts which homeservers this client will sign in to, so that a typo, a crafted link or
+ * a full Matrix ID typed at the login form cannot send a password or a one-time sign-in code to a server we
+ * do not run.
+ *
+ * The allowlist is checked against the host of the resolved homeserver base URL (`hsUrl`), which must also
+ * be https, never against the server name the user typed. A server name outside the allowlist is therefore
+ * fine as long as its `.well-known` delegates to an allowlisted host: that is how custom-domain families
+ * work (server name `smith.example`, client API at `smith.safechat.family`). The checks live in the server
+ * picker, the login form's Matrix ID discovery and `MatrixChat.onServerConfigChange`; the `hs` parameter of
+ * a sign-in link names the hsUrl host directly and is checked before the code is sent.
  *
  * Each entry is a hostname. A leading `*.` matches any subdomain (one or more labels). Matching ignores
  * case. An empty or absent list allows every host, which is upstream Element's behaviour.
@@ -49,6 +56,28 @@ export function isAllowedHomeserverHost(host: string): boolean {
     const allowlist = getHomeserverAllowlist();
     if (allowlist.length === 0) return true;
     return allowlist.some((pattern) => hostMatchesPattern(host, pattern));
+}
+
+/** Whether an allowlist is configured at all. */
+export function hasHomeserverAllowlist(): boolean {
+    return getHomeserverAllowlist().length > 0;
+}
+
+/**
+ * Whether this client may sign in to the homeserver at base URL `hsUrl`. With an allowlist configured the URL
+ * must parse, use https and have an allowlisted host; anything else is refused (fail closed). Without one,
+ * everything is allowed, as upstream.
+ */
+export function isAllowedHomeserverUrl(hsUrl: string | undefined | null): boolean {
+    if (!hasHomeserverAllowlist()) return true;
+    let url: URL;
+    try {
+        url = new URL(hsUrl ?? "");
+    } catch {
+        return false;
+    }
+    if (url.protocol !== "https:" || !url.hostname) return false;
+    return isAllowedHomeserverHost(url.hostname.toLowerCase());
 }
 
 /**

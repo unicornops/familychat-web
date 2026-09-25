@@ -140,6 +140,7 @@ import { ModuleApi } from "../../modules/Api.ts";
 import { type IScreen } from "../../vector/routing.ts";
 import { type URLParams } from "../../vector/url_utils.ts";
 import { parseLoginLinkHomeserver } from "../../utils/LoginLink";
+import { isAllowedHomeserverUrl } from "../../utils/HomeserverAllowlist";
 import { type QrLoginCredentials } from "../views/auth/LoginWithQR.tsx";
 import { configureFromCompletedOAuthLogin } from "../../Lifecycle";
 
@@ -992,7 +993,10 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
             view: Views.REGISTER,
         };
 
-        if (isMobileRegistration && params.hs_url) {
+        if (params.hs_url && !isAllowedHomeserverUrl(params.hs_url)) {
+            // Family Chat: a registration link cannot pick a homeserver outside `homeserver_allowlist`
+            logger.warn("Ignoring hs_url param outside homeserver_allowlist:", params.hs_url);
+        } else if (isMobileRegistration && params.hs_url) {
             try {
                 const config = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(params.hs_url);
                 newState.serverConfig = config;
@@ -2132,6 +2136,13 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
     };
 
     private onServerConfigChange = (serverConfig: ValidatedServerConfig): void => {
+        // Family Chat: every server change from the auth screens (server picker, Matrix ID discovery on the
+        // login form) lands here, so refuse a homeserver outside `homeserver_allowlist` in one place. The
+        // components show their own error first; this is the backstop that keeps a password from reaching it.
+        if (!isAllowedHomeserverUrl(serverConfig.hsUrl)) {
+            logger.warn(`Refusing to switch to homeserver ${serverConfig.hsUrl}: not in homeserver_allowlist`);
+            return;
+        }
         this.setState({ serverConfig });
     };
 

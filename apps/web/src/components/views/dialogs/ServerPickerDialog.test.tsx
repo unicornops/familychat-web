@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2023 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -179,28 +180,85 @@ describe("<ServerPickerDialog />", () => {
                 SdkConfig.reset();
             });
 
-            it.each(["matrix.org", "https://matrix.org", "safechat.family", "evilsafechat.family"])(
-                "rejects %s without any network request",
-                async (input) => {
+            const expectRejected = (container: HTMLElement, onFinished: ReturnType<typeof vi.fn>): void => {
+                expect(container.querySelector(".mx_ServerPickerDialog_otherHomeserver.mx_Field_invalid")).toBeTruthy();
+                expect(
+                    screen.getByText(
+                        "Family Chat can only sign in to your family's own server, for example yourfamily.safechat.family.",
+                    ),
+                ).toBeInTheDocument();
+                expect(onFinished).not.toHaveBeenCalled();
+            };
+
+            const submit = async (input: string): Promise<void> => {
+                fireEvent.change(getOtherHomeserverInput(), { target: { value: input } });
+                fireEvent.click(screen.getByText("Continue"));
+                await flushPromises();
+            };
+
+            it.each([
+                "https://matrix.org",
+                "https://safechat.family",
+                "https://evilsafechat.family",
+                // plain http, even to an allowlisted host
+                "http://smith.safechat.family",
+                // no host to check: fail closed
+                "https://",
+                "@:",
+            ])("rejects %s without any network request", async (input) => {
+                const onFinished = vi.fn();
+                const { container } = getComponent({ onFinished });
+
+                await submit(input);
+
+                expect(fetchMock).not.toHaveFetched();
+                expectRejected(container, onFinished);
+            });
+
+            it.each(["matrix.org", "safechat.family", "evilsafechat.family"])(
+                "rejects the server name %s when it resolves to itself, without probing it as a homeserver",
+                async (serverName) => {
+                    fetchMock.get(`https://${serverName}/.well-known/matrix/client`, { status: 404 });
                     const onFinished = vi.fn();
                     const { container } = getComponent({ onFinished });
 
-                    fireEvent.change(getOtherHomeserverInput(), { target: { value: input } });
-                    fireEvent.click(screen.getByText("Continue"));
-                    await flushPromises();
+                    await submit(serverName);
 
-                    expect(fetchMock).not.toHaveFetched();
-                    expect(
-                        container.querySelector(".mx_ServerPickerDialog_otherHomeserver.mx_Field_invalid"),
-                    ).toBeTruthy();
-                    expect(
-                        screen.getByText(
-                            "Family Chat can only sign in to your family's own server, for example yourfamily.safechat.family.",
-                        ),
-                    ).toBeInTheDocument();
-                    expect(onFinished).not.toHaveBeenCalled();
+                    expect(fetchMock).not.toHaveFetched(`https://${serverName}/_matrix/client/versions`);
+                    expectRejected(container, onFinished);
                 },
             );
+
+            it("rejects an allowlisted server name whose .well-known delegates elsewhere", async () => {
+                fetchMock.get("https://smith.safechat.family/.well-known/matrix/client", {
+                    "m.homeserver": { base_url: "https://matrix.evil.example" },
+                });
+                const onFinished = vi.fn();
+                const { container } = getComponent({ onFinished });
+
+                await submit("smith.safechat.family");
+
+                // (the SDK's discovery probes the delegated server's /versions itself; nothing is ever sent to it)
+                expectRejected(container, onFinished);
+            });
+
+            it("accepts a custom-domain server name whose .well-known delegates to an allowlisted host", async () => {
+                fetchMock.get("https://smith.example/.well-known/matrix/client", {
+                    "m.homeserver": { base_url: "https://smith.safechat.family" },
+                });
+                fetchMock.get("https://smith.safechat.family/_matrix/client/versions", {
+                    unstable_features: {},
+                    versions: SERVER_SUPPORTED_MATRIX_VERSIONS,
+                });
+                const onFinished = vi.fn();
+                getComponent({ onFinished });
+
+                await submit("smith.example");
+
+                expect(onFinished).toHaveBeenCalledWith(
+                    expect.objectContaining({ hsUrl: "https://smith.safechat.family", hsName: "smith.example" }),
+                );
+            });
 
             it("accepts a family server name and resolves it as usual", async () => {
                 const homeserver = "smith.safechat.family";

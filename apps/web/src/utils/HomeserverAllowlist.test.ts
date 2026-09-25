@@ -13,6 +13,7 @@ import {
     hostMatchesPattern,
     homeserverNotAllowedMessage,
     isAllowedHomeserverHost,
+    isAllowedHomeserverUrl,
     isValidHostname,
 } from "./HomeserverAllowlist";
 
@@ -73,6 +74,30 @@ describe("HomeserverAllowlist", () => {
             SdkConfig.put({ homeserver_allowlist: [42, "", null, "*.safechat.family"] as unknown as string[] });
             expect(isAllowedHomeserverHost("smith.safechat.family")).toBe(true);
             expect(isAllowedHomeserverHost("matrix.org")).toBe(false);
+        });
+    });
+
+    describe("isAllowedHomeserverUrl", () => {
+        it("allows any URL when no allowlist is configured", () => {
+            expect(isAllowedHomeserverUrl("http://matrix.org")).toBe(true);
+            expect(isAllowedHomeserverUrl("not a url")).toBe(true);
+        });
+
+        it.each([
+            ["https://smith.safechat.family", true],
+            ["https://smith.safechat.family:8448/", true],
+            ["https://SMITH.safechat.family", true],
+            ["http://smith.safechat.family", false],
+            ["https://smith.safechat.family.", false],
+            ["https://matrix.org", false],
+            ["https://smith.safechat.family.evil.example", false],
+            ["https://[::1]", false],
+            ["not a url", false],
+            ["", false],
+            [undefined, false],
+        ])("with an allowlist, %j -> %j", (url, expected) => {
+            SdkConfig.put({ homeserver_allowlist: ["*.safechat.family"] });
+            expect(isAllowedHomeserverUrl(url)).toBe(expected);
         });
     });
 
