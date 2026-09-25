@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2020 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -20,6 +21,22 @@ const STORE_FILE_NAME = "sso-sessions.json";
 
 // we getPath userData before electron-main changes it, so this is the default value
 const storePath = path.join(app.getPath("userData"), STORE_FILE_NAME);
+
+/**
+ * A deeplink URL safe to write to the log: every query parameter value is replaced (they carry one-time
+ * credentials such as a sign-in link's `loginToken` or an OAuth `code`), and so is a fragment that is not an
+ * app route (`#/…`), which is where OAuth puts the code with `response_mode=fragment`.
+ */
+export function redactUrlForLog(url: URL): string {
+    const redacted = new URL(url.href);
+    for (const key of new Set(redacted.searchParams.keys())) {
+        redacted.searchParams.set(key, "<redacted>");
+    }
+    if (redacted.hash && !redacted.hash.startsWith("#/")) {
+        redacted.hash = "<redacted>";
+    }
+    return redacted.href;
+}
 
 export default class ProtocolHandler {
     private readonly store: Record<string, string> = {};
@@ -94,7 +111,7 @@ export default class ProtocolHandler {
         urlToLoad.search = parsed.search;
         urlToLoad.hash = parsed.hash;
 
-        console.log("Opening URL: ", urlToLoad.href);
+        console.log("Opening URL: ", redactUrlForLog(urlToLoad));
         void global.mainWindow.loadURL(urlToLoad.href);
         return true;
     }
