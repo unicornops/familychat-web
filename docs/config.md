@@ -71,16 +71,35 @@ information.
 Family Chat runs one homeserver per family under `<slug>.safechat.family`, so the fork adds:
 
 1. `homeserver_allowlist`: an array of hostnames the client may sign in to; a leading `*.` matches any subdomain
-   (`["*.safechat.family"]`). It applies to the server picker (anything else is refused before any network
-   request) and to the `hs` parameter below. Absent or empty, any host is allowed as upstream. It does not
-   validate `default_server_config`, which may stay a placeholder that the picker replaces.
+   (`["*.safechat.family"]`). Absent or empty, any host is allowed as upstream. When it is set:
+    - It is checked against the **resolved homeserver URL** (`hsUrl`), which must also be `https`, never against the
+      server name that was typed. A server name outside the allowlist is fine when its `.well-known` delegates to an
+      allowlisted host: that is how custom-domain families work (server name `smith.example`, client API at
+      `smith.safechat.family`).
+    - The server picker refuses a URL that is not `https` or whose host is not allowlisted, and anything it cannot
+      parse, before any network request; a bare server name is resolved through `.well-known` first and refused
+      if it resolves outside the allowlist.
+    - The login form's `.well-known` lookup for a full Matrix ID typed as the username is refused the same way,
+      and `MatrixChat` ignores any server change (and a registration link's `hs_url`) outside the allowlist.
+    - A `well_known` in a login response cannot move the session outside the allowlist, and login requests never
+      follow HTTP redirects.
+    - It does not validate `default_server_config`, which may stay a placeholder that the picker replaces.
 2. The `hs` query parameter next to `loginToken`: `https://app.safechat.family/?loginToken=<token>&hs=<host>`.
    This is what the website's `/app/login/` fallback page emits for a control-panel sign-in code (contract:
    `docs/client-login-links.md` in unicornops/family-chat). `hs` is a bare hostname, optionally `:port`; the
    token is redeemed with `m.login.token` against `https://<hs>` instead of the homeserver remembered from an SSO
-   redirect, and both parameters are stripped from the URL afterwards. If the code was already used or has
-   expired the user is told so and lands on the password form with that homeserver selected. A malformed `hs`,
-   or one outside `homeserver_allowlist`, means the token is not sent anywhere.
+   redirect, and the parameters are stripped from the URL afterwards whatever the outcome.
+    - The user is asked to confirm first ("Sign in with this link?"), so a link someone else sent cannot silently
+      sign the browser in to their account. Cancelling leaves the login form with that homeserver selected.
+    - An optional `login_hint=mxid:<user ID>` names the account in that confirmation, and a code that signs in to
+      any other account is discarded (its new device is logged out) instead of used.
+    - If a session is already stored on this device the link is **not** redeemed: redeeming would replace that
+      session and clear its local data and encryption keys. The user is told to sign out first.
+    - If the session is soft-logged-out, the token is only redeemed when `hs` names that session's own homeserver
+      (and `login_hint`, if present, its user), and a code for any other account is discarded.
+    - If the code was already used or has expired the user is told so and lands on the password form with that
+      homeserver selected. A malformed `hs` or `login_hint`, or an `hs` outside `homeserver_allowlist`, means the
+      token is not sent anywhere.
 
 ## Labs flags
 
