@@ -797,6 +797,36 @@ describe("<MatrixChat />", () => {
             return renderResult;
         };
 
+        it("should not let a sign-in link replace the stored session", async () => {
+            const onTokenLoginCompleted = vi.fn();
+            getComponent({
+                urlParams: { legacy_sso: { loginToken: "a-code-for-someone-else", hs: "smith.safechat.family" } },
+                onTokenLoginCompleted,
+            });
+
+            const dialog = await screen.findByRole("dialog");
+            expect(within(dialog).getByText("Sign-in link not used")).toBeInTheDocument();
+            expect(
+                within(dialog).getByText(
+                    `You're already signed in as ${userId} on this device. Sign out first to use this sign-in link.`,
+                ),
+            ).toBeInTheDocument();
+            fireEvent.click(within(dialog).getByRole("button", { name: "OK" }));
+
+            // the stored session is restored as usual (the splash shown while its client starts syncing)
+            await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+            await screen.findByText("Logout");
+
+            // the token was never sent, and the params are stripped
+            expect(MatrixJs.createClient).not.toHaveBeenCalledWith(
+                expect.objectContaining({ baseUrl: "https://smith.safechat.family" }),
+            );
+            expect(mockClient.login).not.toHaveBeenCalled();
+            expect(onTokenLoginCompleted).toHaveBeenCalled();
+            expect(localStorage.getItem("mx_user_id")).toBe(userId);
+            expect(localStorage.getItem("mx_hs_url")).toBe(serverConfig.hsUrl);
+        });
+
         it("should render welcome page after login", async () => {
             getComponent();
 
@@ -1653,9 +1683,20 @@ describe("<MatrixChat />", () => {
             const linkHost = "smith.safechat.family";
             const linkUrlParams = { legacy_sso: { loginToken, hs: linkHost } };
 
-            it("should redeem the token against the link's homeserver, not the stored SSO one", async () => {
+            /** Answer the "Sign in with this link?" confirmation. */
+            const answerConfirmation = async (button: "Continue" | "Cancel"): Promise<void> => {
+                const dialog = await screen.findByRole("dialog");
+                expect(within(dialog).getByText("Sign in with this link?")).toBeInTheDocument();
+                fireEvent.click(within(dialog).getByRole("button", { name: button }));
+                await flushPromises();
+            };
+
+            it("should ask, then redeem the token against the link's homeserver, not the stored SSO one", async () => {
                 getComponent({ urlParams: linkUrlParams });
                 await flushPromises();
+                expect(loginClient.login).not.toHaveBeenCalled();
+
+                await answerConfirmation("Continue");
 
                 expect(MatrixJs.createClient).toHaveBeenCalledWith(
                     expect.objectContaining({ baseUrl: `https://${linkHost}` }),
@@ -1666,6 +1707,22 @@ describe("<MatrixChat />", () => {
                 });
             });
 
+            it("should send nothing, strip the params and select the link's homeserver when the user cancels", async () => {
+                const onTokenLoginCompleted = vi.fn();
+                getComponent({ urlParams: linkUrlParams, onTokenLoginCompleted });
+                await flushPromises();
+
+                await answerConfirmation("Cancel");
+
+                expect(loginClient.login).not.toHaveBeenCalled();
+                expect(onTokenLoginCompleted).toHaveBeenCalled();
+                expect(AutoDiscoveryUtils.validateServerConfigWithStaticUrls).toHaveBeenCalledWith(
+                    `https://${linkHost}`,
+                    undefined,
+                    true,
+                );
+            });
+
             it("should keep the link's homeserver selected for the password fallback when the code is rejected", async () => {
                 loginClient.login.mockRejectedValue(
                     new MatrixError({ errcode: "M_FORBIDDEN", error: "Invalid login token" }, 403),
@@ -1673,14 +1730,17 @@ describe("<MatrixChat />", () => {
                 const onTokenLoginCompleted = vi.fn();
                 getComponent({ urlParams: linkUrlParams, onTokenLoginCompleted });
                 await flushPromises();
+                await answerConfirmation("Continue");
 
                 // the token is stripped from the URL regardless
-                expect(onTokenLoginCompleted).toHaveBeenCalled();
+                await waitFor(() => expect(onTokenLoginCompleted).toHaveBeenCalled());
                 // and the family's homeserver becomes the login form's server
-                expect(AutoDiscoveryUtils.validateServerConfigWithStaticUrls).toHaveBeenCalledWith(
-                    `https://${linkHost}`,
-                    undefined,
-                    true,
+                await waitFor(() =>
+                    expect(AutoDiscoveryUtils.validateServerConfigWithStaticUrls).toHaveBeenCalledWith(
+                        `https://${linkHost}`,
+                        undefined,
+                        true,
+                    ),
                 );
             });
 

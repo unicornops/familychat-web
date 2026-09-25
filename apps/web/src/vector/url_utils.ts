@@ -51,9 +51,10 @@ export function searchParamsToQueryDict(params: URLSearchParams): QueryDict {
 
 const urlParameterConfig = {
     // Query string params for legacy SSO login, added by the Matrix homeserver.
-    // Family Chat sign-in links add `hs`: the host to redeem `loginToken` against (see utils/LoginLink.ts).
+    // Family Chat sign-in links add `hs`, the host to redeem `loginToken` against, and optionally `login_hint`
+    // (`mxid:<user ID>`), the account the link must sign in to (see utils/LoginLink.ts).
     legacy_sso: {
-        keys: ["loginToken", "hs"],
+        keys: ["loginToken", "hs", "login_hint"],
         location: "query",
     },
     // Fragment params for OAuth2 login, added by the Identity Provider

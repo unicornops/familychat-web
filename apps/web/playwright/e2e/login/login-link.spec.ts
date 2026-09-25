@@ -80,7 +80,15 @@ test.describe("Sign-in link with a login token", () => {
 
         await page.goto(`/?loginToken=${encodeURIComponent(loginToken)}&hs=${FAMILY_HOST}`);
 
-        // Straight into the app, no password prompt
+        // One confirmation (login CSRF), and nothing is sent before it
+        const confirm = page.getByRole("dialog");
+        await expect(confirm.getByText(`This sign-in link signs you in to ${FAMILY_HOST}`)).toBeVisible({
+            timeout: 30_000,
+        });
+        expect(loginRequests).toEqual([]);
+        await confirm.getByRole("button", { name: "Continue" }).click();
+
+        // Then straight into the app, no password prompt
         await expect(page.getByRole("heading", { name: `Welcome ${credentials.displayName}` })).toBeVisible({
             timeout: 30_000,
         });
@@ -101,6 +109,7 @@ test.describe("Sign-in link with a login token", () => {
         try {
             await impersonateHomeserver(replayPage, FAMILY_HOST, credentials.homeserverBaseUrl);
             await replayPage.goto(`/?loginToken=${encodeURIComponent(loginToken)}&hs=${FAMILY_HOST}`);
+            await replayPage.getByRole("dialog").getByRole("button", { name: "Continue" }).click();
 
             const dialog = replayPage.getByRole("dialog");
             await expect(dialog.getByText("already been used or has expired")).toBeVisible({ timeout: 30_000 });
@@ -127,6 +136,28 @@ test.describe("Sign-in link with a login token", () => {
         const dialog = page.getByRole("dialog");
         await expect(dialog.getByText("This sign-in link is not valid")).toBeVisible({ timeout: 30_000 });
         expect(loginRequests).toEqual([]);
+        expect(new URL(page.url()).searchParams.has("loginToken")).toBe(false);
+    });
+
+    test("does not replace a signed-in session", async ({ page, user }) => {
+        const loginRequests: string[] = [];
+        page.on("request", (req) => {
+            if (req.method() === "POST" && req.url().endsWith("/_matrix/client/v3/login"))
+                loginRequests.push(req.url());
+        });
+
+        await page.goto(`/?loginToken=a-code-for-someone-else&hs=${FAMILY_HOST}`);
+
+        const dialog = page.getByRole("dialog");
+        await expect(dialog.getByText(`You're already signed in as ${user.userId} on this device.`)).toBeVisible({
+            timeout: 30_000,
+        });
+        await dialog.getByRole("button", { name: "OK" }).click();
+
+        // still the same account, the token never sent, and the parameters stripped
+        await expect(page.getByRole("heading", { name: `Welcome ${user.displayName}` })).toBeVisible();
+        expect(loginRequests).toEqual([]);
+        expect(await page.evaluate(() => window.mxMatrixClientPeg.get().getUserId())).toBe(user.userId);
         expect(new URL(page.url()).searchParams.has("loginToken")).toBe(false);
     });
 });

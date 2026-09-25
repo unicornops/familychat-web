@@ -342,10 +342,6 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
             this.props.onTokenLoginCompleted(this.props.urlParams, this.getFragmentAfterLogin());
         }
 
-        if (!delegatedAuthSucceeded && this.props.urlParams.legacy_sso?.hs !== undefined) {
-            await this.selectLoginLinkHomeserver(this.props.urlParams.legacy_sso.hs);
-        }
-
         if (delegatedAuthSucceeded) {
             // token auth/OIDC worked! Time to fire up the client.
             this.tokenLogin = true;
@@ -361,9 +357,15 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         // if the user has followed a login or register link, don't reanimate
         // the old creds, but rather go straight to the relevant page
         const firstScreen = this.screenAfterLogin ? this.screenAfterLogin.screen : null;
+        // A sign-in link never replaces a stored session (see Lifecycle.attemptTokenLogin), so when there is
+        // one it is restored here as if the link had not been opened.
         const restoreSuccess = await this.loadSession();
         if (restoreSuccess) {
             return;
+        }
+
+        if (this.props.urlParams.legacy_sso?.hs !== undefined) {
+            await this.selectLoginLinkHomeserver(this.props.urlParams.legacy_sso.hs);
         }
 
         // If the first screen is an auth screen, we don't want to wait for login.
