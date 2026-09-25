@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2019-2022 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -27,6 +28,7 @@ import Spinner from "../../views/elements/Spinner";
 import AuthHeader from "../../views/auth/AuthHeader";
 import AuthBody from "../../views/auth/AuthBody";
 import { type URLParams } from "../../../vector/url_utils.ts";
+import { discardLoginLinkSession, parseLoginLinkHint, parseLoginLinkHomeserver } from "../../../utils/LoginLink";
 
 enum LoginView {
     Loading,
@@ -57,6 +59,15 @@ interface IState {
     password: string;
     errorText: string;
     flows: LoginFlow[];
+}
+
+/** Whether two homeserver base URLs point at the same server (ignoring a trailing slash or default port). */
+function isSameHomeserver(a: string, b: string): boolean {
+    try {
+        return new URL(a).origin === new URL(b).origin;
+    } catch {
+        return false;
+    }
 }
 
 export default class SoftLogout extends React.Component<IProps, IState> {
@@ -93,12 +104,18 @@ export default class SoftLogout extends React.Component<IProps, IState> {
     };
 
     private async initLogin(): Promise<void> {
-        const hasAllParams = !!this.props.urlParams?.legacy_sso;
+        const legacySso = this.props.urlParams?.legacy_sso;
+        const hasAllParams = !!legacySso?.loginToken;
         if (hasAllParams) {
             this.setState({ loginView: LoginView.Loading });
 
             const loggedIn = await this.trySsoLogin();
             if (loggedIn) return;
+        }
+        // Family Chat: a login token is single-use, so strip it (and a sign-in link's `hs`) from the URL
+        // whether or not it worked, rather than leaving it in the address bar and history.
+        if (legacySso) {
+            this.props.onTokenLoginCompleted(this.props.urlParams, this.props.fragmentAfterLogin);
         }
 
         // Note: we don't use the existing Login class because it is heavily flow-based. We don't
@@ -173,14 +190,38 @@ export default class SoftLogout extends React.Component<IProps, IState> {
     private async trySsoLogin(): Promise<boolean> {
         this.setState({ busy: true });
 
-        const hsUrl = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
+        const client = MatrixClientPeg.safeGet();
+        const linkHs = this.props.urlParams?.legacy_sso?.hs;
+        let hsUrl: string | null;
+        let isUrl: string | undefined;
+        if (linkHs !== undefined) {
+            // Family Chat sign-in link: only redeem it against this soft-logged-out session's own homeserver, and
+            // only when the link (allowlist-checked) names that same homeserver. Never use the SSO homeserver
+            // remembered in local storage, which a link has nothing to do with.
+            const linkHomeserver = parseLoginLinkHomeserver(linkHs);
+            const expectedUserId = parseLoginLinkHint(this.props.urlParams?.legacy_sso?.login_hint);
+            if (
+                !linkHomeserver.ok ||
+                !isSameHomeserver(linkHomeserver.url, client.getHomeserverUrl()) ||
+                expectedUserId === null ||
+                (expectedUserId !== undefined && expectedUserId !== client.getUserId())
+            ) {
+                logger.warn("Not redeeming the sign-in link: it is not for this session's homeserver and account");
+                this.setState({ busy: false, errorText: _t("auth|login_link_invalid") });
+                return false;
+            }
+            hsUrl = client.getHomeserverUrl();
+            isUrl = client.getIdentityServerUrl();
+        } else {
+            hsUrl = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
+            isUrl = localStorage.getItem(SSO_ID_SERVER_URL_KEY) || client.getIdentityServerUrl();
+        }
         if (!hsUrl) {
             logger.error("Homeserver URL unknown for SSO login callback");
             this.setState({ busy: false, loginView: LoginView.Unsupported });
             return false;
         }
 
-        const isUrl = localStorage.getItem(SSO_ID_SERVER_URL_KEY) || MatrixClientPeg.safeGet().getIdentityServerUrl();
         const loginType = "m.login.token";
         const loginParams = {
             token: this.props.urlParams?.legacy_sso?.loginToken,
@@ -191,8 +232,26 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         try {
             credentials = await sendLoginRequest(hsUrl, isUrl, loginType, loginParams);
         } catch (e) {
+            if (linkHs !== undefined) {
+                // never log the error object here: it can carry the request, and so the token
+                logger.error("Failed to log in with the sign-in link's token:", (e as MatrixError)?.errcode);
+                this.setState({ busy: false, errorText: _t("auth|login_link_code_rejected") });
+                return false;
+            }
             logger.error(e);
             this.setState({ busy: false, loginView: LoginView.Unsupported });
+            return false;
+        }
+
+        if (linkHs !== undefined && credentials.userId !== client.getUserId()) {
+            // A sign-in link for someone else (e.g. a sibling on the same family server). Hydrating would wipe
+            // this device's session and keys, so drop the new session again and keep the soft-logged-out one.
+            logger.warn("Not using the sign-in link: it is for a different account from this session's");
+            await discardLoginLinkSession(hsUrl, credentials.accessToken);
+            this.setState({
+                busy: false,
+                errorText: _t("auth|login_link_already_signed_in", { userId: client.getUserId() ?? "" }),
+            });
             return false;
         }
 

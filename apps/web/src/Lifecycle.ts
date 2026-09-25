@@ -4,13 +4,21 @@ Copyright 2019, 2020 , 2023 The Matrix.org Foundation C.I.C.
 Copyright 2018 New Vector Ltd
 Copyright 2017 Vector Creations Ltd
 Copyright 2015, 2016 OpenMarket Ltd
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
 */
 
 import { type ReactNode } from "react";
-import { MatrixClient, OAuth2, createClient, SSOAction, decodeBase64 } from "matrix-js-sdk/src/matrix";
+import {
+    MatrixClient,
+    type MatrixError,
+    OAuth2,
+    createClient,
+    SSOAction,
+    decodeBase64,
+} from "matrix-js-sdk/src/matrix";
 import { type AESEncryptedSecretStoragePayload } from "matrix-js-sdk/src/types";
 import { logger } from "matrix-js-sdk/src/logger";
 
@@ -40,6 +48,7 @@ import ThreepidInviteStore from "./stores/ThreepidInviteStore";
 import { PosthogAnalytics } from "./PosthogAnalytics";
 import LifecycleCustomisations from "./customisations/Lifecycle";
 import ErrorDialog from "./components/views/dialogs/ErrorDialog";
+import QuestionDialog from "./components/views/dialogs/QuestionDialog";
 import { _t } from "./languageHandler";
 import SessionRestoreErrorDialog from "./components/views/dialogs/SessionRestoreErrorDialog";
 import StorageEvictedDialog from "./components/views/dialogs/StorageEvictedDialog";
@@ -65,6 +74,7 @@ import {
 } from "./utils/tokens/tokens";
 import { checkBrowserSupport } from "./SupportedBrowser";
 import { type URLParams } from "./vector/url_utils.ts";
+import { discardLoginLinkSession, parseLoginLinkHint, parseLoginLinkHomeserver } from "./utils/LoginLink";
 import { type OnLoggedInPayload } from "./dispatcher/payloads/OnLoggedInPayload.ts";
 import { filterBoolean } from "./utils/arrays.ts";
 import { clearUploadedMediaCache } from "./utils/UploadedMediaCache";
@@ -375,23 +385,29 @@ async function getUserIdFromAccessToken(
  * @returns promise which resolves to true if we completed the token
  *    login, else false
  */
-export function attemptTokenLogin(
+export async function attemptTokenLogin(
     urlParams: URLParams["legacy_sso"],
     defaultDeviceDisplayName?: string,
     fragmentAfterLogin?: string,
 ): Promise<boolean> {
     if (!urlParams?.loginToken) {
-        return Promise.resolve(false);
+        return false;
     }
 
     console.log("We have token login params - attempting token login");
+
+    // Family Chat sign-in link: the link names the homeserver in `hs`, see attemptLoginLinkTokenLogin.
+    // Absent `hs`, this is upstream's SSO callback.
+    if (urlParams.hs !== undefined) {
+        return attemptLoginLinkTokenLogin(urlParams, defaultDeviceDisplayName);
+    }
 
     const homeserver = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
     const identityServer = localStorage.getItem(SSO_ID_SERVER_URL_KEY) ?? undefined;
     if (!homeserver) {
         logger.warn("Cannot log in with token: can't determine HS URL to use");
         onFailedDelegatedAuthLogin(_t("auth|sso_failed_missing_storage"));
-        return Promise.resolve(false);
+        return false;
     }
 
     return sendLoginRequest(homeserver, identityServer, "m.login.token", {
@@ -422,6 +438,89 @@ export function attemptTokenLogin(
             logger.error("Failed to log in with login token:", error);
             return false;
         });
+}
+
+/**
+ * Redeem the `loginToken` of a Family Chat sign-in link (`?loginToken=<token>&hs=<host>[&login_hint=mxid:<id>]`,
+ * contract: `docs/client-login-links.md` in unicornops/family-chat) against `https://<hs>`.
+ *
+ * Upstream only redeems a token after an SSO redirect this client started itself. A sign-in link can be opened
+ * by anyone who is sent it, so this refuses to replace a stored session (a successful redemption clears local
+ * storage, the crypto store and the account's IndexedDB), asks before signing in to the account the link names
+ * (login CSRF), and never sends the token to a host outside `homeserver_allowlist`. The token is never logged.
+ *
+ * @returns true if the user is now signed in
+ */
+async function attemptLoginLinkTokenLogin(
+    urlParams: NonNullable<URLParams["legacy_sso"]>,
+    defaultDeviceDisplayName?: string,
+): Promise<boolean> {
+    const [storedUserId] = await getStoredSessionOwner();
+    if (storedUserId) {
+        // The caller strips the parameters and restores the stored session as if the link had not been opened.
+        logger.warn("Not redeeming the sign-in link: a session is already stored on this device");
+        Modal.createDialog(ErrorDialog, {
+            title: _t("auth|login_link_not_used_title"),
+            description: _t("auth|login_link_already_signed_in", { userId: storedUserId }),
+            button: _t("action|ok"),
+        });
+        return false;
+    }
+
+    const linkHomeserver = parseLoginLinkHomeserver(urlParams.hs);
+    const expectedUserId = parseLoginLinkHint(urlParams.login_hint);
+    if (!linkHomeserver.ok || expectedUserId === null) {
+        // The token is never sent anywhere the link could not have named legitimately.
+        const reason = linkHomeserver.ok ? "malformed login_hint" : `hs ${linkHomeserver.reason}`;
+        logger.warn(`Cannot log in with the sign-in link: ${reason}`);
+        onFailedDelegatedAuthLogin(_t("auth|login_link_invalid"));
+        return false;
+    }
+    const homeserver = linkHomeserver.url;
+
+    // Login CSRF: a link someone else sent must not silently sign this browser in to their account.
+    const { finished } = Modal.createDialog(QuestionDialog, {
+        title: _t("auth|login_link_confirm_title"),
+        description: expectedUserId
+            ? _t("auth|login_link_confirm_user", { userId: expectedUserId, host: linkHomeserver.host })
+            : _t("auth|login_link_confirm_host", { host: linkHomeserver.host }),
+        button: _t("action|continue"),
+    });
+    const [confirmed] = await finished;
+    if (!confirmed) {
+        logger.info("Sign-in link declined");
+        return false;
+    }
+
+    let creds: IMatrixClientCreds;
+    try {
+        creds = await sendLoginRequest(homeserver, undefined, "m.login.token", {
+            token: urlParams.loginToken,
+            initial_device_display_name: defaultDeviceDisplayName,
+        });
+    } catch (error) {
+        // A sign-in code is single-use and short-lived: the homeserver answers a replay or an expired code
+        // with 403. Either way the user needs a new code or their password.
+        const httpStatus = (error as MatrixError)?.httpStatus;
+        onFailedDelegatedAuthLogin(
+            httpStatus === 401 || httpStatus === 403
+                ? _t("auth|login_link_code_rejected")
+                : messageForLoginError(error as MatrixError, { hsUrl: homeserver, hsName: linkHomeserver.host }),
+        );
+        logger.error("Failed to log in with the sign-in link's token:", (error as MatrixError)?.errcode ?? error);
+        return false;
+    }
+
+    if (expectedUserId && creds.userId !== expectedUserId) {
+        logger.warn(`Sign-in link was for ${expectedUserId} but signed in ${creds.userId}; discarding that session`);
+        await discardLoginLinkSession(homeserver, creds.accessToken);
+        onFailedDelegatedAuthLogin(_t("auth|login_link_wrong_account"));
+        return false;
+    }
+
+    logger.log("Logged in with a sign-in link");
+    await onSuccessfulDelegatedAuthLogin(creds);
+    return true;
 }
 
 /**
@@ -483,7 +582,8 @@ function onFailedDelegatedAuthLogin(description: string | ReactNode, tryAgain?: 
     const { finished } = Modal.createDialog(ErrorDialog, {
         title: _t("auth|oidc|error_title"),
         description,
-        button: _t("action|try_again"),
+        // Only offer "Try again" when there is something to retry
+        button: tryAgain ? _t("action|try_again") : _t("action|ok"),
     });
 
     void finished.then(([shouldTryAgain]) => {

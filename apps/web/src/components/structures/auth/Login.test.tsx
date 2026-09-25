@@ -1,5 +1,6 @@
 /*
 Copyright 2019-2024 New Vector Ltd.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -19,10 +20,11 @@ import {
 } from "matrix-js-sdk/src/matrix";
 import { logger } from "matrix-js-sdk/src/logger";
 import * as Matrix from "matrix-js-sdk/src/matrix";
-import { mkServerConfig, mockPlatformPeg, unmockPlatformPeg } from "test-utils";
+import { flushPromises, mkServerConfig, mockPlatformPeg, unmockPlatformPeg } from "test-utils";
 import { makeDelegatedAuthMetadata } from "test-utils/auth";
 
 import SdkConfig from "../../../SdkConfig";
+import AutoDiscoveryUtils from "../../../utils/AutoDiscoveryUtils";
 import Login from "./Login";
 import type BasePlatform from "../../../BasePlatform";
 import * as registerClientUtils from "../../../utils/oauth/registerClient";
@@ -462,6 +464,63 @@ describe("Login", function () {
             ModuleApi.instance.customComponents.registerLoginComponent(() => <>Test component</>);
             const { getByText } = getComponent();
             expect(getByText("Test component")).toBeTruthy();
+        });
+    });
+
+    describe("with a homeserver_allowlist, a full Matrix ID typed as the username", () => {
+        const renderWithServerChange = async () => {
+            const onServerConfigChange = vi.fn();
+            render(
+                <Login
+                    serverConfig={mkServerConfig("https://smith.safechat.family", "https://vector.im")}
+                    onLoggedIn={() => {}}
+                    onServerConfigChange={onServerConfigChange}
+                />,
+            );
+            await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
+            return onServerConfigChange;
+        };
+
+        const typeUsername = async (username: string): Promise<void> => {
+            const field = screen.getByLabelText("Username");
+            fireEvent.change(field, { target: { value: username } });
+            fireEvent.blur(field);
+            await flushPromises();
+        };
+
+        beforeEach(() => {
+            SdkConfig.put({ brand: "Family Chat", homeserver_allowlist: ["*.safechat.family"] });
+            fetchMock.get("https://smith.safechat.family/_matrix/client/versions", {
+                unstable_features: {},
+                versions: ["v1.1"],
+            });
+        });
+
+        it("refuses to switch to a homeserver outside the allowlist", async () => {
+            vi.spyOn(AutoDiscoveryUtils, "validateServerName").mockResolvedValue(
+                mkServerConfig("https://matrix.evil.example", "https://vector.im"),
+            );
+            const onServerConfigChange = await renderWithServerChange();
+
+            await typeUsername("@x:evil.example");
+
+            expect(AutoDiscoveryUtils.validateServerName).toHaveBeenCalledWith("evil.example");
+            expect(onServerConfigChange).not.toHaveBeenCalled();
+            expect(
+                screen.getByText(
+                    "Family Chat can only sign in to your family's own server, for example yourfamily.safechat.family.",
+                ),
+            ).toBeInTheDocument();
+        });
+
+        it("accepts a custom-domain server name that resolves to an allowlisted homeserver", async () => {
+            const resolved = mkServerConfig("https://jones.safechat.family", "https://vector.im");
+            vi.spyOn(AutoDiscoveryUtils, "validateServerName").mockResolvedValue(resolved);
+            const onServerConfigChange = await renderWithServerChange();
+
+            await typeUsername("@ana:jones.example");
+
+            expect(onServerConfigChange).toHaveBeenCalledWith(resolved);
         });
     });
 });

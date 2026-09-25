@@ -1,5 +1,6 @@
 /*
 Copyright 2026 Element Creations Ltd.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -10,7 +11,7 @@ import { fs as memfs, vol } from "memfs";
 import EventEmitter from "node:events";
 import { app } from "electron";
 
-import ProtocolHandler from "./protocol.js";
+import ProtocolHandler, { redactUrlForLog } from "./protocol.js";
 
 const TEST_PROTOCOL = "test.proto";
 const TEST_SESSION_ID = "test_session_id";
@@ -168,6 +169,40 @@ describe("ProtocolHandler", () => {
             });
 
             expect(global.mainWindow!.loadURL).toHaveBeenCalledWith("vector://vector/webapp/#/room/#matrix:matrix.org");
+        });
+    });
+
+    describe("logging", () => {
+        it("never logs a sign-in link's login token", () => {
+            vi.spyOn(process, "platform", "get").mockReturnValue("darwin");
+            vi.stubGlobal("mainWindow", { loadURL: vi.fn() });
+            const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+            new ProtocolHandler(TEST_PROTOCOL);
+            app.emit("open-url", new Event("test"), `${TEST_PROTOCOL}://vector/webapp/?loginToken=SECRET&hs=a.example`);
+
+            expect(global.mainWindow!.loadURL).toHaveBeenCalledWith(
+                "vector://vector/webapp/?loginToken=SECRET&hs=a.example",
+            );
+            for (const call of logSpy.mock.calls) {
+                expect(JSON.stringify(call)).not.toContain("SECRET");
+            }
+            logSpy.mockRestore();
+        });
+
+        it.each([
+            [
+                "vector://vector/webapp/?loginToken=SECRET&hs=a.example",
+                "vector://vector/webapp/?loginToken=%3Credacted%3E&hs=%3Credacted%3E",
+            ],
+            ["vector://vector/webapp/?code=SECRET#/home", "vector://vector/webapp/?code=%3Credacted%3E#/home"],
+            [
+                "vector://vector/webapp/?x=1#code=SECRET&state=s",
+                "vector://vector/webapp/?x=%3Credacted%3E#%3Credacted%3E",
+            ],
+            ["vector://vector/webapp/#/room/!r:example.org", "vector://vector/webapp/#/room/!r:example.org"],
+        ])("redacts %s", (input, expected) => {
+            expect(redactUrlForLog(new URL(input))).toBe(expected);
         });
     });
 });

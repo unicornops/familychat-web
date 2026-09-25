@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2015-2021 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -30,6 +31,7 @@ import AuthBody from "../../views/auth/AuthBody";
 import AuthHeader from "../../views/auth/AuthHeader";
 import AccessibleButton, { type ButtonEvent } from "../../views/elements/AccessibleButton";
 import { type ValidatedServerConfig } from "../../../utils/ValidatedServerConfig";
+import { homeserverNotAllowedMessage, isAllowedHomeserverUrl } from "../../../utils/HomeserverAllowlist";
 import { filterBoolean } from "../../../utils/arrays";
 import { startOAuthLogin } from "../../../utils/oauth/authorize";
 import { ModuleApi } from "../../../modules/Api.ts";
@@ -232,6 +234,13 @@ class LoginComponent extends React.PureComponent<IProps, IState> {
             const serverName = username.split(":").slice(1).join(":");
             try {
                 const result = await AutoDiscoveryUtils.validateServerName(serverName);
+                // Family Chat: judge the homeserver the Matrix ID resolved to, not its server name, so that a
+                // custom-domain family (whose .well-known delegates to `<slug>.safechat.family`) works but a
+                // password never goes to a server outside `homeserver_allowlist`.
+                if (!isAllowedHomeserverUrl(result.hsUrl)) {
+                    this.setState({ busy: false, errorText: homeserverNotAllowedMessage() });
+                    return;
+                }
                 this.props.onServerConfigChange(result);
                 // We'd like to rely on new props coming in via `onServerConfigChange`
                 // so that we know the servers have definitely updated before clearing

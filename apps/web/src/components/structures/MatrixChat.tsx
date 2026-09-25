@@ -1,6 +1,7 @@
 /*
 Copyright 2024 New Vector Ltd.
 Copyright 2015-2024 The Matrix.org Foundation C.I.C.
+Copyright 2026 Unicorn Operations Ltd.
 
 SPDX-License-Identifier: AGPL-3.0-only OR GPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE files in the repository root for full details.
@@ -138,6 +139,8 @@ import { isOnlyAdmin } from "../../utils/membership";
 import { ModuleApi } from "../../modules/Api.ts";
 import { type IScreen } from "../../vector/routing.ts";
 import { type URLParams } from "../../vector/url_utils.ts";
+import { parseLoginLinkHomeserver } from "../../utils/LoginLink";
+import { isAllowedHomeserverUrl } from "../../utils/HomeserverAllowlist";
 import { type QrLoginCredentials } from "../views/auth/LoginWithQR.tsx";
 import { configureFromCompletedOAuthLogin } from "../../Lifecycle";
 
@@ -354,9 +357,15 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         // if the user has followed a login or register link, don't reanimate
         // the old creds, but rather go straight to the relevant page
         const firstScreen = this.screenAfterLogin ? this.screenAfterLogin.screen : null;
+        // A sign-in link never replaces a stored session (see Lifecycle.attemptTokenLogin), so when there is
+        // one it is restored here as if the link had not been opened.
         const restoreSuccess = await this.loadSession();
         if (restoreSuccess) {
             return;
+        }
+
+        if (this.props.urlParams.legacy_sso?.hs !== undefined) {
+            await this.selectLoginLinkHomeserver(this.props.urlParams.legacy_sso.hs);
         }
 
         // If the first screen is an auth screen, we don't want to wait for login.
@@ -952,6 +961,26 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
         });
     }
 
+    /**
+     * A Family Chat sign-in link whose code could not be redeemed (used, expired, rejected) still names the
+     * family's homeserver, so keep that server selected for the password fallback instead of the placeholder
+     * default: the user then only has to type their password. Hosts outside `homeserver_allowlist` are ignored.
+     */
+    private async selectLoginLinkHomeserver(hs: string): Promise<void> {
+        const linkHomeserver = parseLoginLinkHomeserver(hs);
+        if (!linkHomeserver.ok) return;
+        try {
+            const serverConfig = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(
+                linkHomeserver.url,
+                undefined,
+                true,
+            );
+            this.setState({ serverConfig });
+        } catch (e) {
+            logger.warn("Failed to select the homeserver named by the sign-in link:", e);
+        }
+    }
+
     private async startRegistration(params: { [key: string]: string }, isMobileRegistration?: boolean): Promise<void> {
         // If registration is disabled or mobile registration is requested but not enabled in settings redirect to the welcome screen
         if (
@@ -966,7 +995,10 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
             view: Views.REGISTER,
         };
 
-        if (isMobileRegistration && params.hs_url) {
+        if (params.hs_url && !isAllowedHomeserverUrl(params.hs_url)) {
+            // Family Chat: a registration link cannot pick a homeserver outside `homeserver_allowlist`
+            logger.warn("Ignoring hs_url param outside homeserver_allowlist:", params.hs_url);
+        } else if (isMobileRegistration && params.hs_url) {
             try {
                 const config = await AutoDiscoveryUtils.validateServerConfigWithStaticUrls(params.hs_url);
                 newState.serverConfig = config;
@@ -2106,6 +2138,13 @@ export default class MatrixChat extends React.PureComponent<IProps, IState> {
     };
 
     private onServerConfigChange = (serverConfig: ValidatedServerConfig): void => {
+        // Family Chat: every server change from the auth screens (server picker, Matrix ID discovery on the
+        // login form) lands here, so refuse a homeserver outside `homeserver_allowlist` in one place. The
+        // components show their own error first; this is the backstop that keeps a password from reaching it.
+        if (!isAllowedHomeserverUrl(serverConfig.hsUrl)) {
+            logger.warn(`Refusing to switch to homeserver ${serverConfig.hsUrl}: not in homeserver_allowlist`);
+            return;
+        }
         this.setState({ serverConfig });
     };
 

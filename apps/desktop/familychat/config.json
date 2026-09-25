@@ -7,7 +7,7 @@
             "server_name": "safechat.family"
         }
     },
-    "disable_custom_urls": true,
+    "homeserver_allowlist": ["*.safechat.family"],
     "disable_guests": true,
     "disable_3pid_login": true,
     "show_labs_settings": false,
