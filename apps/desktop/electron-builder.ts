@@ -18,6 +18,7 @@ import { LogMessageByKey } from "app-builder-lib/out/node-module-collector/modul
  * On Windows:
  *  Passes $ED_SIGNTOOL_THUMBPRINT and $ED_SIGNTOOL_SUBJECT_NAME to
  *      build.win.signtoolOptions.signingHashAlgorithms and build.win.signtoolOptions.certificateSubjectName respectively if specified.
+ *  Signs through Azure Artifact Signing (build.win.azureSignOptions) if $ED_AZURE_SIGN_* are all specified.
  *
  * On Linux:
  *  Replaces spaces in the product name with dashes as spaces in paths can cause issues
@@ -244,6 +245,15 @@ if (process.env.VERSION) {
     config.extraMetadata.version = process.env.VERSION;
 }
 
+/**
+ * Allow specifying the build version (macOS CFBundleVersion) via env var, so that a release version
+ * like 1.12.28-fc.1 can carry a numeric build version like 1.12.28.1.
+ * @param {string} process.env.ED_BUILD_VERSION
+ */
+if (process.env.ED_BUILD_VERSION) {
+    config.buildVersion = process.env.ED_BUILD_VERSION;
+}
+
 if (variant["linux.deb.name"]) {
     config.deb.fpm.push("--name", variant["linux.deb.name"]);
 }
@@ -257,6 +267,30 @@ if (process.env.ED_SIGNTOOL_SUBJECT_NAME && process.env.ED_SIGNTOOL_THUMBPRINT) 
     config.win.signtoolOptions!.certificateSubjectName = process.env.ED_SIGNTOOL_SUBJECT_NAME;
     config.win.signtoolOptions!.certificateSha1 = process.env.ED_SIGNTOOL_THUMBPRINT;
     config.extraMetadata.electron_windows_cert_sn = config.win.signtoolOptions!.certificateSubjectName;
+}
+
+/**
+ * Allow signing Windows builds through Azure Artifact Signing (formerly Trusted Signing) via env vars.
+ * Authentication is whatever Azure.Identity's DefaultAzureCredential finds: in the release workflow, the
+ * Azure CLI session that azure/login opened with GitHub OIDC (no client secret). See docs/RELEASING.md.
+ * @param {string} process.env.ED_AZURE_SIGN_ENDPOINT e.g. https://weu.codesigning.azure.net/
+ * @param {string} process.env.ED_AZURE_SIGN_ACCOUNT the Artifact Signing account name
+ * @param {string} process.env.ED_AZURE_SIGN_PROFILE the certificate profile name
+ * @param {string} process.env.ED_AZURE_SIGN_PUBLISHER the certificate's subject CN, e.g. the validated organisation name
+ */
+if (
+    process.env.ED_AZURE_SIGN_ENDPOINT &&
+    process.env.ED_AZURE_SIGN_ACCOUNT &&
+    process.env.ED_AZURE_SIGN_PROFILE &&
+    process.env.ED_AZURE_SIGN_PUBLISHER
+) {
+    config.win.azureSignOptions = {
+        endpoint: process.env.ED_AZURE_SIGN_ENDPOINT,
+        codeSigningAccountName: process.env.ED_AZURE_SIGN_ACCOUNT,
+        certificateProfileName: process.env.ED_AZURE_SIGN_PROFILE,
+        publisherName: process.env.ED_AZURE_SIGN_PUBLISHER,
+    };
+    config.extraMetadata.electron_windows_cert_sn = process.env.ED_AZURE_SIGN_PUBLISHER;
 }
 
 if (os.platform() === "linux") {

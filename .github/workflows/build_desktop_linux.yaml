@@ -5,8 +5,8 @@
 # and signs everything. We have neither, so this workflow deliberately skips `pnpm run hak` and
 # produces an unsigned package without those two optional features.
 #
-# macOS and Windows builds, code signing and the update feed are tracked in
-# unicornops/family-chat#235 §8.
+# Release builds (signed macOS and Windows, Linux, GitHub Releases) are release.yml, see
+# docs/RELEASING.md; the update feed is still to do there.
 name: Build Desktop (Linux, unsigned)
 on:
     pull_request: {}
