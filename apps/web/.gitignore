@@ -16,3 +16,6 @@
 /src/**/__screenshots__/*
 !/src/**/__screenshots__/linux/
 /.vitest-attachments/
+
+# Network allowlist test output (playwright-privacy.config.ts)
+/playwright/privacy-results/
