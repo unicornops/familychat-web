@@ -130,6 +130,11 @@ export default {
         },
         ".": {
             entry: ["scripts/**", "docs/**"],
+            ignoreDependencies: [
+                // The action-validator binary is run by scripts/lint-workflows.sh
+                "@action-validator/cli",
+                "@action-validator/core",
+            ],
         },
     },
     ignoreDependencies: [
