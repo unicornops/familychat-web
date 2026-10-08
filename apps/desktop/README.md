@@ -30,10 +30,8 @@ Or, for development, symlink it instead of packing an asar:
 ln -s ../web/webapp ./
 ```
 
-> [!WARNING]
-> Do **not** use `pnpm run fetch`. It still downloads Element's release tarball from
-> `github.com/element-hq` and verifies it against Element's signing key. Rewiring it to our own
-> releases is tracked in [unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235).
+Upstream's `pnpm run fetch` (which downloaded Element's release tarball) has been removed: always
+build the web app in-tree.
 
 # Building
 

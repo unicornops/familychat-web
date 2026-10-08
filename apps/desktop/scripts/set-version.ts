@@ -20,7 +20,7 @@ export async function versionFromAsar(): Promise<string> {
     try {
         await fs.stat("webapp.asar");
     } catch {
-        throw new Error("No 'webapp.asar' found. Run 'pnpm run fetch'");
+        throw new Error("No 'webapp.asar' found. Build the web app and run 'pnpm run asar-webapp' (see README.md)");
     }
 
     return asar.extractFile("webapp.asar", "version").toString().trim();

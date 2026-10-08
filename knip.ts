@@ -67,6 +67,8 @@ export default {
                 "!scripts/**!",
                 "!src/test/**!",
                 "!recorder-worklet-loader.cjs!",
+                // Family Chat network-allowlist test config (unicornops/familychat-web#8): test-only
+                "!playwright-privacy.config.ts!",
                 "!src/**/*-{mock,mocks,snapshot,actions}.*!",
             ],
             ignoreDependencies: [
@@ -106,8 +108,6 @@ export default {
             ignoreBinaries: [
                 // Used to build seshat (optional)
                 "rustc",
-                // Used by the fetch-package script (optional)
-                "gpg",
                 // Used for the macOS universal builds
                 "lipo",
             ],
