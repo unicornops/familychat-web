@@ -84,8 +84,49 @@ search, sqlcipher for secure storage). CI does not, so CI artifacts are built wi
 
 ## Keeping up with upstream
 
-Upstream ships roughly weekly. We merge upstream release tags into `familychat` on a **fortnightly**
-cadence, so we are at most one release behind.
+Upstream ships roughly weekly, and we merge every **stable** release tag (`vX.Y.Z`; not `-rc` tags, not
+`module/*` or other package tags) into `familychat`. Merge the tag, never rebase: `familychat` is public, and
+every release must map to a tag. Merge the pull request with a merge commit, never squash.
+
+### Automated sync
+
+[`.github/workflows/upstream-sync.yml`](.github/workflows/upstream-sync.yml) runs daily (and on manual
+dispatch) and does the merge below for the newest stable upstream release, using
+[`upstream-sync.sh`](.github/workflows/scripts/upstream-sync.sh):
+
+- A merge that is clean, or that only hits the conflicts the fork's fixed rules settle, is pushed to
+  `upstream/vX.Y.Z` with a pull request titled `chore(upstream): merge element-hq/element-web vX.Y.Z`. It
+  lists what was resolved automatically and the files both sides changed, and carries the per-merge
+  checklist. It is never merged automatically.
+- The fixed rules: upstream edits to files the fork deleted (workflows, `labels.yml`, the mobile guide,
+  `element.io/` configs, …) keep the deletion; `CODEOWNERS`, this README and the branding images and
+  favicon baselines keep ours; conflict hunks in `package.json` files and `pnpm-workspace.yaml` are merged
+  line by line when each line changed on one side only (our name next to upstream's version bump, our
+  extra dependency next to upstream's bumped one), by
+  [`upstream-sync-resolve.py`](.github/workflows/scripts/upstream-sync-resolve.py); and `pnpm-lock.yaml`
+  is regenerated with `pnpm install --lockfile-only --ignore-scripts`. Workflows new in the release are
+  dropped in a second commit.
+- Any other conflict pushes nothing: the workflow opens or updates an issue labelled `upstream-sync`
+  with the conflicting paths, what it would have resolved, and the commands to reproduce the merge.
+- When the release notes mention a security fix, or an upstream GHSA advisory is patched in that
+  release, the pull request or issue is also labelled `security` and pings the CODEOWNERS.
+
+It runs in the `upstream-sync` environment (deployments from `familychat` only), which holds
+`UPSTREAM_SYNC_TOKEN`: a fine-grained token for this repository only, with read and write access to
+contents, pull requests and issues. `GITHUB_TOKEN` cannot be used, because its pushes do not trigger
+CI on the pull request. A manual dispatch defaults to a dry run, which writes the pull request or
+issue it would open to the job summary. The script also runs locally from a clean checkout (it needs
+`gh` logged in, `jq`, `python3`, and `pnpm` to regenerate the lockfile; it switches the checkout to
+the merge branch):
+
+```sh
+GITHUB_REPOSITORY=unicornops/familychat-web DRY_RUN=true TAG=vX.Y.Z \
+  .github/workflows/scripts/upstream-sync.sh
+```
+
+### Merging by hand
+
+When the sync opens an issue instead of a pull request, or to merge a release yourself:
 
 ```sh
 # one-off
