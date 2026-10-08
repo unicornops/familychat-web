@@ -90,9 +90,9 @@ every release must map to a tag. Merge the pull request with a merge commit, nev
 
 ### Automated sync
 
-[`.github/workflows/upstream-sync.yml`](.github/workflows/upstream-sync.yml) runs daily (and on manual
+[`.github/workflows/upstream-sync.yml`](https://github.com/unicornops/familychat-web/blob/familychat/.github/workflows/upstream-sync.yml) runs daily (and on manual
 dispatch) and does the merge below for the newest stable upstream release, using
-[`upstream-sync.sh`](.github/workflows/scripts/upstream-sync.sh):
+[`upstream-sync.sh`](https://github.com/unicornops/familychat-web/blob/familychat/.github/workflows/scripts/upstream-sync.sh):
 
 - A merge that is clean, or that only hits the conflicts the fork's fixed rules settle, is pushed to
   `upstream/vX.Y.Z` with a pull request titled `chore(upstream): merge element-hq/element-web vX.Y.Z`. It
@@ -103,7 +103,7 @@ dispatch) and does the merge below for the newest stable upstream release, using
   favicon baselines keep ours; conflict hunks in `package.json` files and `pnpm-workspace.yaml` are merged
   line by line when each line changed on one side only (our name next to upstream's version bump, our
   extra dependency next to upstream's bumped one), by
-  [`upstream-sync-resolve.py`](.github/workflows/scripts/upstream-sync-resolve.py); and `pnpm-lock.yaml`
+  [`upstream-sync-resolve.py`](https://github.com/unicornops/familychat-web/blob/familychat/.github/workflows/scripts/upstream-sync-resolve.py); and `pnpm-lock.yaml`
   is regenerated with `pnpm install --lockfile-only --ignore-scripts`. Workflows new in the release are
   dropped in a second commit.
 - Any other conflict pushes nothing: the workflow opens or updates an issue labelled `upstream-sync`
