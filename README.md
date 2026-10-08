@@ -23,6 +23,7 @@ this repository adds is the Family Chat branding, configuration and packaging.
 | -------------- | ------------------------------------------------------------------- |
 | Upstream       | [element-hq/element-web](https://github.com/element-hq/element-web) |
 | Forked at      | tag `v1.12.28`                                                      |
+| Last merged    | tag `v1.12.30`                                                      |
 | Default branch | `familychat`                                                        |
 | Licence        | AGPL-3.0-only (see [Copyright & licence](#copyright--licence))      |
 
@@ -69,8 +70,7 @@ The desktop app wraps a built web app. Build the web app first, then:
 cd apps/desktop
 cp -r ../web/webapp ./webapp
 pnpm run asar-webapp
-mkdir -p .hak/hakModules      # skip the native modules (no encrypted search / secure storage)
-pnpm run build -- -l tar.gz deb --publish never
+pnpm run build -l tar.gz deb --publish never
 ```
 
 Artifacts land in `apps/desktop/dist`. `VARIANT_PATH` selects the electron-builder variant and
@@ -79,8 +79,8 @@ defaults to [`apps/desktop/familychat/build.json`](https://github.com/unicornops
 Do **not** use `pnpm run fetch`: it still downloads Element's release tarball from
 `github.com/element-hq`. Build the web app in-tree instead.
 
-Optionally [build the native modules](docs/native-node-modules.md) (`matrix-seshat` for encrypted
-search, sqlcipher for secure storage). CI does not, so CI artifacts are built without them.
+Encrypted search uses the prebuilt [`@matrix-org/seshat`](docs/native-node-modules.md) binaries,
+which `pnpm install` fetches; there is no native build step any more.
 
 ## Keeping up with upstream
 
@@ -102,19 +102,41 @@ pnpm install && pnpm lint && pnpm test:unit
 pnpm --filter familychat-web build
 ```
 
-Conflicts cluster in a small, predictable set of files:
+Conflicts cluster in a small, predictable set of files. Keep this list current after every merge
+(it mirrors [#4](https://github.com/unicornops/familychat-web/issues/4)). Always keep our values, and read
+upstream's diff for _new_ configuration keys or code paths that need a Family Chat answer.
 
-| File                                                  | Why it conflicts                                |
-| ----------------------------------------------------- | ----------------------------------------------- |
-| `apps/web/src/SdkConfig.ts`                           | our `DEFAULTS` replace Element's hosts          |
-| `apps/web/src/vector/index.html`, `res/manifest.json` | title, icons, theme colour                      |
-| `apps/web/webpack.config.ts`                          | `welcome/**` copy pattern, removed mobile guide |
-| `apps/desktop/electron-builder.ts`                    | variant path, deb recommends                    |
-| `apps/web/src/i18n/strings/en_EN.json`                | rebranded English strings                       |
-| `.github/workflows/**`                                | we deleted most upstream workflows              |
-| `package.json`, `apps/*/package.json`                 | names, homepage, licence                        |
+| File                                                                                                  | Why it conflicts                                                                                                                                                                  |
+| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/web/familychat/config.json`, `apps/desktop/familychat/`                                         | our config; upstream edits `element.io/` instead, so check it for new keys                                                                                                        |
+| `apps/web/src/SdkConfig.ts`, `IConfigOptions.ts`                                                      | our `DEFAULTS` replace Element's hosts; `homeserver_allowlist`                                                                                                                    |
+| `apps/web/src/Lifecycle.ts`, `Login.ts`, `MatrixChat.tsx`, `SoftLogout.tsx`, `Login.tsx`              | sign-in link redemption (`attemptLoginLinkTokenLogin`); upstream refactors the imports and token storage here                                                                     |
+| `ServerPickerDialog.tsx`, `utils/HomeserverAllowlist.ts`, `utils/LoginLink.ts`, `vector/url_utils.ts` | the homeserver allowlist and sign-in links                                                                                                                                        |
+| `apps/desktop/src/protocol.ts`                                                                        | `familychat://` and deeplink log redaction                                                                                                                                        |
+| `apps/desktop/electron-builder.ts`, `apps/desktop/package.json`                                       | variant path, `publish: null`, deb `recommends`, names                                                                                                                            |
+| `apps/web/src/vector/index.html`, `res/manifest.json`, `webpack.config.ts`                            | title, icons, theme colour, `welcome/**`, removed mobile guide                                                                                                                    |
+| Branding images and favicon screenshot baselines                                                      | binary conflicts: keep ours (`git checkout --ours`); upstream's vitest/vite bumps can still move the favicon baselines                                                            |
+| `apps/web/src/i18n/strings/en_EN.json`                                                                | rebranded English strings. Localazy is off; the other locales are upstream's                                                                                                      |
+| `.github/workflows/**`, `.github/CODEOWNERS`, `.github/labels.yml`                                    | we deleted most upstream workflows: modify/delete conflicts keep the deletion, new upstream workflows are dropped (see the list below)                                            |
+| `package.json`, `apps/*/package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`                        | names, homepage, licence; `@matrix-org/matrix-sdk-crypto-wasm` and `matrix-widget-api ^1.19.0` that the released js-sdk needs. Take upstream's lockfile and re-run `pnpm install` |
+| Test files we extended (`Lifecycle.test.ts`, `MatrixChat.test.tsx`, …)                                | take upstream's file and re-apply our cases; never union-merge them                                                                                                               |
+| `docs/generated/[id].paths.ts`                                                                        | upstream graphs the linked js-sdk's workflows, we don't                                                                                                                           |
+| `AGENTS.md`                                                                                           | upstream's agent guide, with our overrides block at the top                                                                                                                       |
+
+`matrix-js-sdk` is pinned to the released version each upstream release tag uses (upstream's `develop`
+links a js-sdk checkout via `scripts/layered.sh`; CI here never runs that). Since `v1.12.30` all unit tests
+are vitest (`jest` is gone), and desktop encrypted search comes from prebuilt seshat binaries (`hak` is gone).
 
 Open the merge as a PR against `familychat`; never push to `element-hq`.
+
+### Deleted upstream workflows
+
+These upstream workflows are intentionally absent: they need Element's secrets, accounts or
+infrastructure, or enforce Element's own triage and PR rules: `backport`, `build-and-test-netlify`, `build-and-test`, `build_debian`, `build_desktop_and_deploy`, `build_desktop_macos`, `build_desktop_prepare`, `build_desktop_test`, `build_desktop_windows`, `build_develop`, `cd`, `deploy`, `docker`, `docs`, `issue_closed`, `localazy_download`, `localazy_upload`, `merge-queue`, `netlify`, `npm-publish`, `pull_request`, `release-drafter`, `release-gitflow`, `release-module`, `release`, `release_prepare`, `shared-component-storybook-build`, `shared-component-storybook-netlify`, `shared-component-storybook-publish`, `sync-labels`, `tests-netlify`, `triage-assigned`, `triage-incoming`, `triage-labelled`, `triage-move-review-requests`, `triage-priority`, `triage-stale`, `triage-unlabelled`, `update-jitsi`, `update-topics`.
+Workflows that run on `pull_request_target`, `workflow_run`, `issues` or `schedule` execute from the
+default branch, so if a merge re-adds one, delete it again **and** check it is still disabled at repo
+level (`gh workflow list --all`). We keep and adapt `build`, `build_desktop_linux` (unsigned, Linux
+only), `static_analysis`, `tests`, `pull_request_base_branch` and our own `conventional_commits`.
 
 ## Third-party services
 
