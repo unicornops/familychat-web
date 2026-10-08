@@ -1,4 +1,5 @@
 /*
+Copyright 2026 Unicorn Operations Ltd.
 Copyright 2024, 2025 New Vector Ltd.
 Copyright 2020 The Matrix.org Foundation C.I.C.
 
@@ -50,6 +51,8 @@ import { topicToHtml } from "../../../HtmlUtils.tsx";
 import { useRoomSummaryCardViewModel } from "../../viewmodels/right_panel/RoomSummaryCardViewModel";
 import { useRoomTopicViewModel } from "../../viewmodels/right_panel/RoomSummaryCardTopicViewModel";
 import { useRoomName } from "../../../hooks/useRoomName.ts";
+import { useSettingValue } from "../../../hooks/useSettings.ts";
+import { UIFeature } from "../../../settings/UIFeature.ts";
 
 interface IProps {
     room: Room;
@@ -133,6 +136,9 @@ const RoomSummaryCardView: React.FC<IProps> = ({
     const vm = useRoomSummaryCardViewModel(room, permalinkCreator, onSearchCancel);
     // XXX: this name should be part of the view model
     const name = useRoomName(room);
+    // Family Chat: with widgets turned off there is nothing to open from here, and opening a
+    // widget another client added would load a third-party page.
+    const widgetsEnabled = useSettingValue(UIFeature.Widgets);
 
     // The search field is controlled and onSearchChange is debounced in RoomView,
     // so we need to set the value of the input right away
@@ -270,11 +276,13 @@ const RoomSummaryCardView: React.FC<IProps> = ({
                             label={_t("right_panel|files_button")}
                             onSelect={vm.onRoomFilesClick}
                         />
-                        <MenuItem
-                            Icon={ExtensionsIcon}
-                            label={_t("right_panel|extensions_button")}
-                            onSelect={vm.onRoomExtensionsClick}
-                        />
+                        {widgetsEnabled && (
+                            <MenuItem
+                                Icon={ExtensionsIcon}
+                                label={_t("right_panel|extensions_button")}
+                                onSelect={vm.onRoomExtensionsClick}
+                            />
+                        )}
                     </>
                 )}
 

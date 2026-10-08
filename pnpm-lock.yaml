@@ -500,18 +500,12 @@ importers:
       memfs:
         specifier: ^4.57.2
         version: 4.72.1
-      mkdirp:
-        specifier: ^3.0.0
-        version: 3.0.1
       rimraf:
         specifier: ^6.0.0
         version: 6.1.3
       shared-types:
         specifier: workspace:*
         version: link:../../packages/shared-types
-      tar:
-        specifier: ^7.5.21
-        version: 7.5.22
       typescript:
         specifier: catalog:ts6
         version: '@typescript/typescript6@6.0.2'

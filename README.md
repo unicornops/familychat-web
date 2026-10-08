@@ -76,8 +76,8 @@ pnpm run build -l tar.gz deb --publish never
 Artifacts land in `apps/desktop/dist`. `VARIANT_PATH` selects the electron-builder variant and
 defaults to [`apps/desktop/familychat/build.json`](https://github.com/unicornops/familychat-web/blob/familychat/apps/desktop/familychat/build.json).
 
-Do **not** use `pnpm run fetch`: it still downloads Element's release tarball from
-`github.com/element-hq`. Build the web app in-tree instead.
+Upstream's `pnpm run fetch`, which downloaded Element's release tarball from `github.com/element-hq`,
+has been removed. Always build the web app in-tree.
 
 Encrypted search uses the prebuilt [`@matrix-org/seshat`](docs/native-node-modules.md) binaries,
 which `pnpm install` fetches; there is no native build step any more.
@@ -140,17 +140,46 @@ only), `static_analysis`, `tests`, `pull_request_base_branch` and our own `conve
 
 ## Third-party services
 
-Family Chat must not send family content or metadata to anyone but us. This build contacts:
+Family Chat must not send family content or metadata to anyone but us. This is the network
+baseline. The client may contact only:
 
-- the family's own homeserver (`<slug>.safechat.family`, or their custom domain),
-- `safechat.family` / `panel.safechat.family` for help, legal and control-panel links,
-- `matrix.org` only for the "Powered by Matrix" link in the login footer (a link, not a request).
+| Host                                          | Why                                                       |
+| --------------------------------------------- | --------------------------------------------------------- |
+| the family's homeserver and its `.well-known` | `<slug>.safechat.family`, or the family's custom domain   |
+| `app.safechat.family`                         | the web app itself                                        |
+| `safechat.family`                             | help, privacy policy, terms (links), `.well-known` lookup |
+| `panel.safechat.family`                       | control-panel link                                        |
+| `packages.safechat.family`                    | desktop updates, and Linux spellcheck dictionaries        |
+
+`matrix.org`, `github.com` and the browser download links on the unsupported-browser page are
+links the user can click, not requests the app makes.
 
 Removed or disabled relative to upstream: PostHog analytics, Sentry, the rageshake bug-report
-endpoint, MapTiler map tiles and location sharing, the Scalar integration manager, Jitsi, Element
-Call, the `mobile.element.io` mobile guide and its redirect, and the `packages.element.io` /
-`element.io` download links. A full audit is tracked in
-[unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235) §2 and §7.
+endpoint, MapTiler map tiles and location sharing, the Scalar integration manager, widgets, Jitsi
+(including upstream's `meet.element.io` fallback), Element Call, reCAPTCHA (and its CSP entry), the
+`mobile.element.io` mobile guide and its redirect, the Element app-store links and banners, the
+`packages.element.io` / `element.io` download links, `pnpm run fetch`, and (desktop) Electron's
+default Hunspell dictionary download from Google's CDN.
+
+### Network capture
+
+`apps/web/playwright/privacy/network-allowlist.spec.ts` loads the built app with
+`apps/web/familychat/config.json`, goes through the signed-out pages, signs in against a mocked
+homeserver, opens a room (with an image, a link, a location share and a `meet.element.io` Jitsi
+widget added by another client), sends a message and opens every settings tab. It intercepts every
+request, so nothing reaches the real network, and fails on any host outside the baseline above.
+CI runs it in the **Build** workflow. Locally:
+
+```sh
+cd apps/web
+cp familychat/config.json config.json && pnpm run build
+pnpm exec playwright install chromium   # once
+pnpm exec playwright test -c playwright-privacy.config.ts
+```
+
+Set `PRIVACY_TEST_DEBUG=1` to print the browser console and the API calls the mock does not handle.
+The desktop app is not covered by this test: capture it through a proxy (for example mitmproxy) on a
+real install.
 
 ## Placeholders
 

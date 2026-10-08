@@ -4,8 +4,8 @@ the desktop app (https://safechat.family).
 - `build.json` is the electron-builder variant: application id, product name,
   executable/deb name and the `familychat://` protocol handler. It is selected
   with `VARIANT_PATH=familychat/build.json`, and is also the default variant.
-- `config.json` is the app config baked into the package with
-  `pnpm run fetch --cfgdir familychat`.
+- `config.json` is the desktop app config (it adds `update_base_url`). Bake it into
+  the package by copying it over `webapp/config.json` before `pnpm run asar-webapp`.
 
 Building with this config points the app at the Family Chat update feed, so you
 probably only want it if you are producing the official Family Chat builds.
