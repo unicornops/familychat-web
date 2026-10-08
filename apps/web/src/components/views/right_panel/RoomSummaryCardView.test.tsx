@@ -1,4 +1,5 @@
 /*
+Copyright 2026 Unicorn Operations Ltd.
 Copyright 2024 New Vector Ltd.
 Copyright 2023 The Matrix.org Foundation C.I.C.
 
@@ -25,6 +26,8 @@ import {
     useRoomSummaryCardViewModel,
 } from "../../viewmodels/right_panel/RoomSummaryCardViewModel";
 import DMRoomMap from "../../../utils/DMRoomMap";
+import SettingsStore from "../../../settings/SettingsStore";
+import { UIFeature } from "../../../settings/UIFeature";
 import { SDKContext } from "../../../contexts/SDKContext";
 import { SDKContextClass } from "../../../contexts/SDKContextClass";
 
@@ -357,6 +360,24 @@ describe("<RoomSummaryCard />", () => {
             getComponent();
 
             expect(screen.queryByText("In a meeting")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("extensions", () => {
+        it("shows the extensions entry when widgets are enabled", () => {
+            getComponent();
+            expect(screen.getByRole("menuitem", { name: "Extensions" })).toBeInTheDocument();
+        });
+
+        it("hides the extensions entry when widgets are turned off (Family Chat)", () => {
+            const original = SettingsStore.getValue;
+            vi.spyOn(SettingsStore, "getValue").mockImplementation((name, ...args) =>
+                name === UIFeature.Widgets ? false : original.call(SettingsStore, name, ...args),
+            );
+
+            getComponent();
+
+            expect(screen.queryByRole("menuitem", { name: "Extensions" })).not.toBeInTheDocument();
         });
     });
 });

@@ -78,6 +78,7 @@
     "setting_defaults": {
         "UIFeature.registration": false,
         "UIFeature.voip": false,
+        "UIFeature.widgets": false,
         "UIFeature.locationSharing": false,
         "UIFeature.identityServer": false,
         "UIFeature.thirdPartyId": false,

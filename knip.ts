@@ -71,6 +71,8 @@ export default {
                 "!scripts/**!",
                 "!src/test/**!",
                 "!recorder-worklet-loader.cjs!",
+                // Family Chat network-allowlist test config (unicornops/familychat-web#8): test-only
+                "!playwright-privacy.config.ts!",
                 "!src/**/*-{mock,mocks,snapshot,actions}.*!",
             ],
             ignoreDependencies: [
@@ -103,10 +105,6 @@ export default {
         "apps/desktop": {
             entry: ["src/preload.cts!", "electron-builder.ts!", "scripts/**"],
             project: ["**/*.{js,ts,pcss}"],
-            ignoreBinaries: [
-                // Used by the fetch-package script (optional)
-                "gpg",
-            ],
         },
         "modules": {
             project: ["**/*.{js,cjs,mjs,jsx,ts,cts,mts,tsx,pcss}!", "!playwright/**!"],
