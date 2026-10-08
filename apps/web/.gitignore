@@ -15,3 +15,6 @@
 # are the diffs vitest writes alongside it.
 /src/**/__screenshots__/*
 !/src/**/__screenshots__/linux/
+
+# Network allowlist test output (playwright-privacy.config.ts)
+/playwright/privacy-results/

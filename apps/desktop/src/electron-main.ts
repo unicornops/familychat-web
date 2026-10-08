@@ -1,4 +1,5 @@
 /*
+Copyright 2026 Unicorn Operations Ltd.
 Copyright 2018-2025 New Vector Ltd.
 Copyright 2017-2019 Michael Telatynski <7t3chguy@gmail.com>
 Copyright 2016 Aviral Dasgupta
@@ -299,6 +300,12 @@ app.on("ready", async () => {
     // Handle spellchecker
     // For some reason spellCheckerEnabled isn't persisted, so we have to use the store here
     global.mainWindow.webContents.session.setSpellCheckerEnabled(store.get("spellCheckerEnabled", true));
+    // Family Chat: on Linux, Electron downloads Hunspell dictionaries from Google's CDN by default,
+    // which tells Google our users' IP addresses and languages. Fetch them from our own host instead
+    // (unicornops/familychat-web#8). macOS and Windows use the OS spellchecker and download nothing.
+    global.mainWindow.webContents.session.setSpellCheckerDictionaryDownloadURL(
+        "https://packages.safechat.family/desktop/hunspell/",
+    );
 
     // Create trayIcon icon
     if (store.get("minimizeToTray")) await tray.create();

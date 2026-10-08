@@ -1,4 +1,5 @@
 /*
+Copyright 2026 Unicorn Operations Ltd.
 Copyright 2024 New Vector Ltd.
 Copyright 2020 The Matrix.org Foundation C.I.C.
 
@@ -27,8 +28,12 @@ export class Jitsi {
     private domain?: string;
     private _useFor1To1Calls = false;
 
+    /**
+     * The Jitsi domain from config.json or the homeserver's .well-known, or "" if neither sets one.
+     * Family Chat has no fallback: upstream falls back to Element's meet.element.io.
+     */
     public get preferredDomain(): string {
-        return this.domain || "meet.element.io";
+        return this.domain || "";
     }
 
     public get useFor1To1Calls(): boolean {
@@ -68,7 +73,7 @@ export class Jitsi {
 
     private update = async (discoveryResponse?: IClientWellKnown): Promise<any> => {
         // Start with a default of the config's domain
-        let domain = SdkConfig.getObject("jitsi")?.get("preferred_domain") || "meet.element.io";
+        let domain = SdkConfig.getObject("jitsi")?.get("preferred_domain") || "";
 
         logger.log("Attempting to get Jitsi conference information from homeserver");
         const wkJitsiConfig = discoveryResponse?.[JITSI_WK_PROPERTY] ?? discoveryResponse?.[JITSI_WK_PROPERTY_LEGACY];
