@@ -39,10 +39,8 @@ build the web app in-tree.
 
 TODO: List native pre-requisites
 
-Optionally, [build the native modules](../../docs/native-node-modules.md), which include support
-for searching in encrypted rooms and secure storage. Skipping this step is fine, you just won't
-have those features; CI skips it, so CI artifacts do not have them either. electron-builder still
-expects the directory to exist, so `mkdir -p .hak/hakModules` if you skip it.
+Support for searching in encrypted rooms is provided by [prebuilt native modules](../../docs/native-node-modules.md)
+(`@matrix-org/seshat`), which are installed automatically by `pnpm install`.
 
 Then, run
 
@@ -66,8 +64,6 @@ Alternatively, you can also build using docker, which will always produce the li
 pnpm run docker:setup
 
 pnpm run docker:install
-# if you want to build the native modules (this will take a while)
-pnpm run docker:build:native
 pnpm run docker:build
 ```
 
