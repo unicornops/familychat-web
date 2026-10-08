@@ -184,8 +184,6 @@ jobs:
                   # Workaround for https://github.com/electron-userland/electron-builder/issues/5721
                   USE_HARD_LINKS: false
               run: |
-                  # No native modules (Seshat search): electron-builder still expects the directory to exist.
-                  mkdir -p .hak/hakModules
                   # No `--` after `build`: see build_desktop_linux.yaml.
                   VERSION="${TAG#v}" pnpm run build -l deb AppImage tar.gz --x64 --publish never
             - name: Collect the release files
@@ -268,7 +266,6 @@ jobs:
                       exit 1
                     fi
                   done
-                  mkdir -p .hak/hakModules
                   VERSION="${TAG#v}" ED_BUILD_VERSION="$VERSION_BASE.$FC" \
                     pnpm run build -m dmg zip --universal --publish never
             # electron-builder only warns when it cannot sign: this step is what refuses an unsigned build.
@@ -381,7 +378,6 @@ jobs:
                   ED_AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
                   ED_AZURE_SIGN_PUBLISHER: ${{ secrets.AZURE_SIGNING_PUBLISHER }}
               run: |
-                  mkdir -p .hak/hakModules
                   VERSION="${TAG#v}" pnpm run build -w squirrel msi --x64 --publish never
             - name: Check the signatures and collect the release files
               working-directory: apps/desktop

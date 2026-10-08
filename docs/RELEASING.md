@@ -179,6 +179,4 @@ These are part of #5 but need infrastructure that does not exist yet; each is a 
   Squirrel.Windows). Publishing those to R2 is not done: until then, the apps' hourly update check fails harmlessly
   and nothing points at Element. electron-builder's own `publish` stays `null`.
 - **Signed apt repository** on `packages.safechat.family` (GPG key in the `release` environment).
-- **Native modules** (`pnpm run hak`: Seshat encrypted search). The desktop builds have no search in encrypted rooms
-  until they are built in CI.
 - **arm64** Linux and Windows builds.
