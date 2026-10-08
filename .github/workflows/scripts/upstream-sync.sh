@@ -43,7 +43,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Paths the fork deleted on purpose. Upstream edits to them are modify/delete conflicts, which are resolved by
 # keeping the deletion. Anything else that conflicts goes to a person.
-deleted_on_purpose_regex='^(\.github/(workflows/[^/]+\.ya?ml|labels\.yml|FUNDING\.yml|release-drafter\.yml|SSLcom-sandbox\.crt|ISSUE_TEMPLATE/[^/]+|actions/download-verify-element-tarball/.+)|apps/(web|desktop)/element\.io/.+|apps/web/src/toasts/MobileGuideToast(\.test)?\.ts|apps/web/src/vector/mobile_guide/.+|apps/web/playwright/e2e/mobile-guide/.+|localazy\.json|LICENSE-COMMERCIAL)$'
+deleted_on_purpose_regex='^(\.github/(workflows/[^/]+\.ya?ml|labels\.yml|FUNDING\.yml|release-drafter\.yml|SSLcom-sandbox\.crt|ISSUE_TEMPLATE/[^/]+|actions/download-verify-element-tarball/.+)|apps/(web|desktop)/element\.io/.+|apps/web/src/toasts/MobileGuideToast(\.test)?\.ts|apps/web/src/vector/mobile_guide/.+|apps/web/playwright/e2e/mobile-guide/.+|apps/desktop/scripts/fetch-package\.ts|localazy\.json|LICENSE-COMMERCIAL)$'
 
 # Paths where the fork's version always wins: our own CODEOWNERS and README, and the branding images and the
 # screenshot baselines that show them (git cannot merge binaries anyway).
