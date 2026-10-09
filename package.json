@@ -18,7 +18,7 @@
         "lint:fmt:fix": "oxfmt",
         "lint:js": "nx run-many -t lint:prepare -p && oxlint",
         "lint:js:fix": "oxlint --fix",
-        "lint:workflows": "find .github/workflows -type f \\( -iname '*.yaml' -o -iname '*.yml' \\) -print -exec action-validator {} ';'",
+        "lint:workflows": "scripts/lint-workflows.sh",
         "lint:knip": "knip --no-tag-hints && knip --strict --exclude unlisted,dependencies,binaries",
         "lint:unused-settings": "node scripts/find-unused-settings.ts",
         "install:git-hooks": "husky",

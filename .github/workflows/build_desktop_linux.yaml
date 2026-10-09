@@ -4,8 +4,8 @@
 # against an older glibc) and signs everything. We build on the runner and sign nothing. Encrypted
 # search comes from the prebuilt `@matrix-org/seshat` binaries that `pnpm install` fetches.
 #
-# macOS and Windows builds, code signing and the update feed are tracked in
-# unicornops/family-chat#235 §8.
+# Release builds (signed macOS and Windows, Linux, GitHub Releases) are release.yml, see
+# docs/RELEASING.md; the update feed is still to do there.
 name: Build Desktop (Linux, unsigned)
 on:
     pull_request: {}

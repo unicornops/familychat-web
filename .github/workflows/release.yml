@@ -1,0 +1,471 @@
+# Copyright 2026 Unicorn Operations Ltd.
+#
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+# Please see LICENSE files in the repository root for full details.
+
+# Family Chat release pipeline (#5, docs/RELEASING.md). A tag v<upstream version>-fc.<n> on familychat builds:
+# - the web app with apps/web/familychat/config.json, as a tarball, deployed to the Cloudflare Pages staging branch once
+#   the repository variable CLOUDFLARE_PAGES_PROJECT is set (production is promote.yml);
+# - the desktop app from that same web app: Linux (deb, AppImage, tar.gz; not signed), macOS (universal dmg + zip,
+#   Developer ID signed and notarised) and, once the repository variable WINDOWS_SIGNING is `enabled`, Windows
+#   (Squirrel installer + MSI, signed through Azure Artifact Signing with GitHub OIDC);
+# - a GitHub pre-release with all of it, a CycloneDX SBOM, SHA256SUMS and build provenance attestations.
+# Every job that signs or deploys runs in the protected `release` environment (Rob is the required reviewer). They all
+# start waiting at the same moment, after the web build, so one approval covers the whole release. The gate, the
+# unsigned builds and the GitHub release jobs have no secrets.
+
+name: Release
+
+on:
+    push:
+        tags: ["v*-fc.*"]
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Existing release tag to build again, e.g. v1.12.28-fc.1"
+                required: true
+                type: string
+
+permissions: {}
+
+concurrency:
+    group: release-${{ inputs.tag || github.ref_name }}
+    cancel-in-progress: false
+
+env:
+    NX_DEFAULT_OUTPUT_STYLE: stream-without-prefixes
+
+jobs:
+    gate:
+        name: Check the release tag
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            actions: read
+        outputs:
+            tag: ${{ steps.tag.outputs.tag }}
+            version: ${{ steps.tag.outputs.version }}
+            fc: ${{ steps.tag.outputs.fc }}
+            sha: ${{ steps.tag.outputs.sha }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - name: Check the tag, its branch and its CI
+              id: tag
+              env:
+                  TAG: ${{ inputs.tag || github.ref_name }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: ./.github/workflows/scripts/release-gate.sh
+
+    web:
+        name: Build the web app
+        needs: gate
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ needs.gate.outputs.sha }}
+                  persist-credentials: false
+            # No dependency cache in release builds: nothing a pull request run could have written gets into a release.
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version-file: .node-version
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Build
+              working-directory: apps/web
+              env:
+                  CI_PACKAGE: true
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  cp familychat/config.json config.json
+                  VERSION="${TAG#v}" pnpm run build
+            # Cloudflare Pages reads _headers from the deployed directory; other web servers ignore it.
+            - name: Pack the web app
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  cp .github/cfp_headers apps/web/webapp/_headers
+                  mkdir -p dist
+                  tar -C apps/web -czf "dist/familychat-web-$TAG.tar.gz" --transform "s,^webapp,familychat-web-$TAG," webapp
+            - name: Upload the web app
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-web
+                  path: dist/
+                  if-no-files-found: error
+
+    web-staging:
+        name: Deploy the web app to staging
+        needs: [gate, web]
+        if: vars.CLOUDFLARE_PAGES_PROJECT != ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        environment: release
+        permissions:
+            contents: read
+        steps:
+            - name: Download the web app
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: release-web
+                  path: dist
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version: 24
+            - name: Deploy to the staging branch of Cloudflare Pages
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  SHA: ${{ needs.gate.outputs.sha }}
+                  PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+              run: |
+                  for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+                    if [ -z "${!name}" ]; then
+                      echo "::error::${name} is not set in the release environment (docs/RELEASING.md)"
+                      exit 1
+                    fi
+                  done
+                  mkdir webapp
+                  tar -xzf "dist/familychat-web-$TAG.tar.gz" -C webapp --strip-components=1
+                  npx --yes wrangler@4.149.0 pages deploy webapp --project-name "$PROJECT" --branch staging \
+                    --commit-hash "$SHA" --commit-message "$TAG" --commit-dirty=false
+                  echo "::notice::$TAG is on the staging branch of the $PROJECT Pages project"
+
+    linux:
+        name: Build the desktop app for Linux
+        needs: [gate, web]
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ needs.gate.outputs.sha }}
+                  persist-credentials: false
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version-file: apps/desktop/.node-version
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Download the web app
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: release-web
+                  path: web
+            - name: Pack the web app into webapp.asar, with the desktop config
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  mkdir webapp
+                  tar -xzf "../../web/familychat-web-$TAG.tar.gz" -C webapp --strip-components=1
+                  rm -f webapp/_headers
+                  cp familychat/config.json webapp/config.json
+                  pnpm run asar-webapp
+            - name: Build the Linux packages
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  VARIANT_PATH: familychat/build.json
+                  # Workaround for https://github.com/electron-userland/electron-builder/issues/5721
+                  USE_HARD_LINKS: false
+              run: |
+                  # No `--` after `build`: see build_desktop_linux.yaml.
+                  VERSION="${TAG#v}" pnpm run build -l deb AppImage tar.gz --x64 --publish never
+            - name: Collect the release files
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  set -x
+                  mkdir -p ../../dist
+                  deb=(dist/familychat_*_amd64.deb)
+                  appimage=(dist/*.AppImage)
+                  tarball=(dist/familychat-*.tar.gz)
+                  for f in "${deb[@]}" "${appimage[@]}" "${tarball[@]}"; do [ -f "$f" ]; done
+                  [ "${#deb[@]}" = 1 ] && [ "${#appimage[@]}" = 1 ] && [ "${#tarball[@]}" = 1 ]
+                  dpkg-deb --field "${deb[0]}" Package | grep -qx familychat
+                  dpkg-deb --fsys-tarfile "${deb[0]}" | tar -t | grep -q 'opt/Family-Chat/familychat$'
+                  cp "${deb[0]}" "../../dist/familychat-desktop-$TAG-linux-amd64.deb"
+                  cp "${appimage[0]}" "../../dist/familychat-desktop-$TAG-linux-x86_64.AppImage"
+                  cp "${tarball[0]}" "../../dist/familychat-desktop-$TAG-linux-x64.tar.gz"
+            - name: Upload the release files
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-linux
+                  path: dist/
+                  if-no-files-found: error
+
+    macos:
+        name: Build, sign and notarise the desktop app for macOS
+        needs: [gate, web]
+        runs-on: macos-26
+        timeout-minutes: 90
+        environment: release
+        permissions:
+            contents: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ needs.gate.outputs.sha }}
+                  persist-credentials: false
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version-file: apps/desktop/.node-version
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Download the web app
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: release-web
+                  path: web
+            - name: Pack the web app into webapp.asar, with the desktop config
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  mkdir webapp
+                  tar -xzf "../../web/familychat-web-$TAG.tar.gz" -C webapp --strip-components=1
+                  rm -f webapp/_headers
+                  cp familychat/config.json webapp/config.json
+                  pnpm run asar-webapp
+            # electron-builder imports the certificate into a temporary keychain of its own and notarises the app with
+            # notarytool (Apple ID + app-specific password), stapling the ticket before it makes the dmg and the zip.
+            - name: Build, sign and notarise the universal app
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  FC: ${{ needs.gate.outputs.fc }}
+                  VERSION_BASE: ${{ needs.gate.outputs.version }}
+                  VARIANT_PATH: familychat/build.json
+                  CSC_LINK: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+                  CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  APPLE_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+                    if [ -z "${!name}" ]; then
+                      echo "::error::${name} is empty: the macOS signing secrets are missing (docs/RELEASING.md)"
+                      exit 1
+                    fi
+                  done
+                  VERSION="${TAG#v}" ED_BUILD_VERSION="$VERSION_BASE.$FC" \
+                    pnpm run build -m dmg zip --universal --publish never
+            # electron-builder only warns when it cannot sign: this step is what refuses an unsigned build.
+            - name: Check the signature and the notarisation
+              working-directory: apps/desktop
+              env:
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+              run: |
+                  set -x
+                  app="dist/mac-universal/Family Chat.app"
+                  codesign --verify --deep --strict --verbose=2 "$app"
+                  codesign -dv --verbose=4 "$app" 2>&1 | grep -q "^Authority=Developer ID Application: .*(${APPLE_TEAM_ID})$"
+                  codesign -dv --verbose=4 "$app" 2>&1 | grep -q "^TeamIdentifier=${APPLE_TEAM_ID}$"
+                  xcrun stapler validate "$app"
+                  spctl --assess --type execute --verbose=2 "$app"
+            - name: Collect the release files
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  set -x
+                  mkdir -p ../../dist
+                  dmg=(dist/*-universal.dmg)
+                  zip=(dist/*-universal-mac.zip)
+                  [ "${#dmg[@]}" = 1 ] && [ -f "${dmg[0]}" ] && [ "${#zip[@]}" = 1 ] && [ -f "${zip[0]}" ]
+                  cp "${dmg[0]}" "../../dist/familychat-desktop-$TAG-macos-universal.dmg"
+                  cp "${zip[0]}" "../../dist/familychat-desktop-$TAG-macos-universal.zip"
+            - name: Upload the release files
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-macos
+                  path: dist/
+                  if-no-files-found: error
+
+    windows:
+        name: Build and sign the desktop app for Windows
+        needs: [gate, web]
+        # Off until the Azure Artifact Signing account exists (family-chat#236): docs/RELEASING.md.
+        if: vars.WINDOWS_SIGNING == 'enabled'
+        runs-on: windows-2025
+        timeout-minutes: 90
+        environment: release
+        permissions:
+            contents: read
+            id-token: write
+        defaults:
+            run:
+                shell: bash
+        steps:
+            - name: Check the Azure signing secrets
+              env:
+                  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+                  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+                  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                  AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+                  AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+                  AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+                  AZURE_SIGNING_PUBLISHER: ${{ secrets.AZURE_SIGNING_PUBLISHER }}
+              run: |
+                  for name in AZURE_CLIENT_ID AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_SIGNING_ENDPOINT \
+                              AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE AZURE_SIGNING_PUBLISHER; do
+                    if [ -z "${!name}" ]; then
+                      echo "::error::${name} is not set in the release environment, but WINDOWS_SIGNING is enabled (docs/RELEASING.md)"
+                      exit 1
+                    fi
+                  done
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ needs.gate.outputs.sha }}
+                  persist-credentials: false
+            - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version-file: apps/desktop/.node-version
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+            - name: Download the web app
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: release-web
+                  path: web
+            - name: Pack the web app into webapp.asar, with the desktop config
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+              run: |
+                  mkdir webapp
+                  tar -xzf "../../web/familychat-web-$TAG.tar.gz" -C webapp --strip-components=1
+                  rm -f webapp/_headers
+                  cp familychat/config.json webapp/config.json
+                  pnpm run asar-webapp
+            # GitHub OIDC to the federated credential of the signing identity: no client secret anywhere. The
+            # Invoke-TrustedSigning module electron-builder calls then picks up this Azure CLI session.
+            - name: Log in to Azure
+              uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+            - name: Build and sign the installers
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  # The fourth part of the Windows file version.
+                  BUILD_NUMBER: ${{ needs.gate.outputs.fc }}
+                  VARIANT_PATH: familychat/build.json
+                  ED_AZURE_SIGN_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+                  ED_AZURE_SIGN_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+                  ED_AZURE_SIGN_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+                  ED_AZURE_SIGN_PUBLISHER: ${{ secrets.AZURE_SIGNING_PUBLISHER }}
+              run: |
+                  VERSION="${TAG#v}" pnpm run build -w squirrel msi --x64 --publish never
+            - name: Check the signatures and collect the release files
+              working-directory: apps/desktop
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  PUBLISHER: ${{ secrets.AZURE_SIGNING_PUBLISHER }}
+              run: |
+                  set -x
+                  mkdir -p ../../dist
+                  setup=(dist/squirrel-windows/*.exe)
+                  msi=(dist/*.msi)
+                  [ "${#setup[@]}" = 1 ] && [ -f "${setup[0]}" ] && [ "${#msi[@]}" = 1 ] && [ -f "${msi[0]}" ]
+                  cp "${setup[0]}" "../../dist/familychat-desktop-$TAG-windows-x64-setup.exe"
+                  cp "${msi[0]}" "../../dist/familychat-desktop-$TAG-windows-x64.msi"
+                  for f in ../../dist/*.exe ../../dist/*.msi; do
+                    FILE="$f" pwsh -NoProfile -Command '
+                      $s = Get-AuthenticodeSignature -FilePath $env:FILE
+                      if ($s.Status -ne "Valid" -or $s.SignerCertificate.Subject -notmatch [regex]::Escape("CN=$env:PUBLISHER")) {
+                        Write-Output "::error::$env:FILE is not signed by $env:PUBLISHER ($($s.Status))"; exit 1
+                      }'
+                  done
+            - name: Upload the release files
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: release-windows
+                  path: dist/
+                  if-no-files-found: error
+
+    github-release:
+        name: Publish the GitHub pre-release
+        needs: [gate, web, linux, macos, windows]
+        # Windows is skipped until WINDOWS_SIGNING is enabled; anything else must have succeeded.
+        if: >-
+            !cancelled() && needs.gate.result == 'success' && needs.web.result == 'success' &&
+            needs.linux.result == 'success' && needs.macos.result == 'success' &&
+            (needs.windows.result == 'success' || needs.windows.result == 'skipped')
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  ref: ${{ needs.gate.outputs.sha }}
+                  fetch-depth: 0
+                  persist-credentials: false
+            - name: Download the release files
+              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  pattern: release-*
+                  merge-multiple: true
+                  path: dist
+            # The npm packages the web and desktop apps are built from (the lockfile), not what is installed on a runner.
+            - name: Generate the SBOM
+              uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+              with:
+                  file: pnpm-lock.yaml
+                  format: cyclonedx-json
+                  output-file: dist/familychat-${{ needs.gate.outputs.tag }}-sbom.cdx.json
+                  upload-artifact: false
+                  upload-release-assets: false
+            - name: Write the checksums
+              working-directory: dist
+              run: sha256sum -- * > SHA256SUMS
+            - name: Attest the build provenance
+              uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+              with:
+                  subject-path: dist/*
+            - name: Write the release notes
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  WINDOWS: ${{ needs.windows.result }}
+              run: |
+                  ./.github/workflows/scripts/release-notes.sh "$TAG" > "$RUNNER_TEMP/notes.md"
+                  if [ "$WINDOWS" != "success" ]; then
+                    printf '\nThere is no Windows build in this release yet: Windows signing is not set up.\n' >> "$RUNNER_TEMP/notes.md"
+                  fi
+            - name: Create or update the pre-release
+              env:
+                  TAG: ${{ needs.gate.outputs.tag }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+                    gh release upload "$TAG" dist/* --clobber --repo "$REPO"
+                    gh release edit "$TAG" --notes-file "$RUNNER_TEMP/notes.md" --repo "$REPO"
+                  else
+                    gh release create "$TAG" dist/* --prerelease --verify-tag \
+                      --title "Family Chat $TAG" --notes-file "$RUNNER_TEMP/notes.md" --repo "$REPO"
+                  fi

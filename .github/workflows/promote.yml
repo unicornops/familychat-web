@@ -1,0 +1,90 @@
+# Copyright 2026 Unicorn Operations Ltd.
+#
+# SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial.
+# Please see LICENSE files in the repository root for full details.
+
+# Promotes a release tested on staging (#5, docs/RELEASING.md): deploys the web app tarball of its GitHub release, the
+# exact bytes release.yml built and attested, to the production branch of the Cloudflare Pages project
+# (app.safechat.family), then turns the pre-release into the latest full release. Promoting an older tag again is the
+# rollback.
+
+name: Promote a release
+
+on:
+    workflow_dispatch:
+        inputs:
+            tag:
+                description: "Release tag to put in production, e.g. v1.12.28-fc.1"
+                required: true
+                type: string
+
+permissions: {}
+
+concurrency:
+    group: promote
+    cancel-in-progress: false
+
+jobs:
+    web-production:
+        name: Deploy the web app to production
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        environment: release
+        permissions:
+            contents: read
+            attestations: read
+        steps:
+            - name: Download and verify the web app of the release
+              env:
+                  TAG: ${{ inputs.tag }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: |
+                  if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-fc\.[1-9]$ ]]; then
+                    echo "::error::$TAG is not a release tag"
+                    exit 1
+                  fi
+                  tarball="familychat-web-$TAG.tar.gz"
+                  gh release download "$TAG" --repo "$REPO" --pattern "$tarball" --pattern SHA256SUMS --dir dist
+                  (cd dist && grep -F "  $tarball" SHA256SUMS | sha256sum --check --strict)
+                  # Signed by release.yml; not pinned to the tag's ref, since a rebuild by hand runs from familychat.
+                  gh attestation verify "dist/$tarball" --repo "$REPO" --signer-workflow "$REPO/.github/workflows/release.yml"
+                  mkdir webapp
+                  tar -xzf "dist/$tarball" -C webapp --strip-components=1
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+              with:
+                  package-manager-cache: false
+                  node-version: 24
+            - name: Deploy to the production branch of Cloudflare Pages
+              env:
+                  TAG: ${{ inputs.tag }}
+                  PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+              run: |
+                  for name in PROJECT CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+                    if [ -z "${!name}" ]; then
+                      echo "::error::${name} is not set (docs/RELEASING.md)"
+                      exit 1
+                    fi
+                  done
+                  sha="$(gh api "repos/$REPO/commits/$TAG" --jq .sha)"
+                  npx --yes wrangler@4.149.0 pages deploy webapp --project-name "$PROJECT" --branch production \
+                    --commit-hash "$sha" --commit-message "$TAG" --commit-dirty=false
+                  echo "::notice::$TAG is in production on the $PROJECT Pages project"
+
+    github-release:
+        name: Mark the GitHub release as the latest
+        needs: web-production
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: write
+        steps:
+            - name: Turn the pre-release into the latest release
+              env:
+                  TAG: ${{ inputs.tag }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+              run: gh release edit "$TAG" --repo "$REPO" --prerelease=false --latest
