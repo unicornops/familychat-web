@@ -121,9 +121,11 @@ session. `AZURE_SIGNING_PUBLISHER` also seeds the Windows tray icon GUID, so do 
 
 Until this is done, leave the repository variable `CLOUDFLARE_PAGES_PROJECT` unset: releases then deploy nothing.
 
-1. In gitops-environments `cloudflare`, create a **Direct Upload** Pages project (e.g. `familychat-web`) with
-   **production branch `production`**, the custom domain `app.safechat.family` on production and
-   `staging.app.safechat.family` on the `staging` branch alias (`staging.<project>.pages.dev`).
+1. The Pages project is managed in unicornops/gitops-environments
+   (`cloudflare/unicornops/safechat.family/web-hosting`, gitops-environments#44): Direct Upload project
+   `familychat-web`, **production branch `production`** on `app.safechat.family`, the `staging` branch alias on
+   `app-staging.safechat.family` (one label deep, so the zone's Universal SSL certificate covers it). The same unit
+   creates the R2 bucket `familychat-packages` behind `packages.safechat.family`.
 2. Create an API token with **Account → Cloudflare Pages → Edit** on that account only.
 3. Add the secrets to the `release` environment and set the **repository variable** `CLOUDFLARE_PAGES_PROJECT` to the
    project name.
