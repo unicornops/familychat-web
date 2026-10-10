@@ -5,8 +5,10 @@
 
 # Promotes a release tested on staging (#5, docs/RELEASING.md): deploys the web app tarball of its GitHub release, the
 # exact bytes release.yml built and attested, to the production branch of the Cloudflare Pages project
-# (app.safechat.family), then turns the pre-release into the latest full release. Promoting an older tag again is the
-# rollback.
+# (app.safechat.family); once the repository variable PACKAGES_BUCKET is set, publishes the desktop update feeds and the
+# Linux spellcheck dictionaries to that R2 bucket (packages.safechat.family, scripts/publish-packages.sh); then turns the
+# pre-release into the latest full release. Both deploy jobs wait for the `release` environment at the same moment, so
+# one approval covers them. Promoting an older tag again is the rollback.
 
 name: Promote a release
 
@@ -75,9 +77,45 @@ jobs:
                     --commit-hash "$sha" --commit-message "$TAG" --commit-dirty=false
                   echo "::notice::$TAG is in production on the $PROJECT Pages project"
 
+    desktop-updates:
+        name: Publish the desktop updates and dictionaries
+        if: vars.PACKAGES_BUCKET != ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        environment: release
+        permissions:
+            contents: read
+            attestations: read
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+                  sparse-checkout: .github/workflows/scripts
+            - name: Publish to the packages bucket
+              env:
+                  TAG: ${{ inputs.tag }}
+                  GH_TOKEN: ${{ github.token }}
+                  REPO: ${{ github.repository }}
+                  BUCKET: ${{ vars.PACKAGES_BUCKET }}
+                  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+                  AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+              run: |
+                  for name in CLOUDFLARE_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+                    if [ -z "${!name}" ]; then
+                      echo "::error::${name} is not set in the release environment (docs/RELEASING.md)"
+                      exit 1
+                    fi
+                  done
+                  ./.github/workflows/scripts/publish-packages.sh
+
     github-release:
         name: Mark the GitHub release as the latest
-        needs: web-production
+        needs: [web-production, desktop-updates]
+        # desktop-updates is skipped until PACKAGES_BUCKET is set; anything else must have succeeded.
+        if: >-
+            !cancelled() && needs.web-production.result == 'success' &&
+            contains(fromJSON('["success", "skipped"]'), needs.desktop-updates.result)
         runs-on: ubuntu-24.04
         permissions:
             contents: write

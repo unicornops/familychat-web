@@ -232,8 +232,8 @@ These are not yet real and must be settled before the client is handed to famili
   `disable_custom_urls: true`, nobody can sign in until either a real default homeserver exists or
   QR/link login ([unicornops/family-chat#236](https://github.com/unicornops/family-chat/issues/236))
   lands and carries the homeserver in the link.
-- `update_base_url` points at `https://packages.safechat.family/desktop/update/`, which is not
-  hosted yet.
+- `update_base_url` points at `https://packages.safechat.family/desktop/update/`, filled when a
+  release is promoted (docs/RELEASING.md).
 - Icons are generated from the website favicon and are "good enough for now", not a designed icon set.
 - Nothing is code-signed. macOS notarisation and Windows Azure Artifact Signing are tracked in
   [unicornops/family-chat#235](https://github.com/unicornops/family-chat/issues/235) §8.

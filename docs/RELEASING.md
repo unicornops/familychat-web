@@ -138,6 +138,37 @@ Until this is done, leave the repository variable `CLOUDFLARE_PAGES_PROJECT` uns
 Deploys run `npx wrangler@<exact version> pages deploy` on the tarball from the release, with `_headers` from
 `.github/cfp_headers` (upstream's security headers for its own Pages deploys).
 
+### Desktop: update feeds and dictionaries on packages.safechat.family
+
+Until this is done, leave the repository variable `PACKAGES_BUCKET` unset: promoting then publishes no desktop update,
+and installed apps keep failing their hourly update check, harmlessly.
+
+1. The R2 bucket `familychat-packages` and its custom domain `packages.safechat.family` come from the same
+   gitops-environments unit as the Pages project.
+2. In the Cloudflare dashboard, R2 → **Manage API tokens** → Create **Account API token**, permission **Object Read &
+   Write**, applied to the bucket `familychat-packages` only. Keep the Access Key ID and Secret Access Key it shows
+   (once).
+3. Add the secrets to the `release` environment (`CLOUDFLARE_ACCOUNT_ID` is the one above) and set the **repository
+   variable** `PACKAGES_BUCKET` to `familychat-packages`.
+
+| Secret                 | Value                            |
+| ---------------------- | -------------------------------- |
+| `R2_ACCESS_KEY_ID`     | the R2 token's Access Key ID     |
+| `R2_SECRET_ACCESS_KEY` | the R2 token's Secret Access Key |
+
+What promote.yml puts there (`.github/workflows/scripts/publish-packages.sh`), under `desktop/`:
+
+| Path                | What                                                                                                                                                                                               |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `update/macos/`     | `releases.json` (Squirrel.Mac's JSON feed) and the notarised zip it points at.                                                                                                                     |
+| `update/win32/x64/` | `RELEASES` and the Squirrel package it names, when the release has a Windows build; otherwise left as it is.                                                                                       |
+| `hunspell/`         | The `.bdic` dictionaries of the release's Electron version, from Electron's own `hunspell_dictionaries.zip` (checked against its `SHASUMS256.txt`). Linux apps fetch them instead of Google's CDN. |
+
+`update_base_url` in `apps/desktop/familychat/config.json` points at `desktop/update/`. Packages are uploaded before
+the feeds that name them; each feed keeps its current and previous package, and older ones are deleted. Dictionaries
+are never deleted (their names carry their version, and older apps still ask for theirs). Packages and dictionaries
+are served as immutable, the feeds with `no-cache`.
+
 ## Cutting a release
 
 1. Merge everything into `familychat` and wait for Build, Tests, Static Analysis and Build Desktop (Linux) to pass on
@@ -153,14 +184,18 @@ the files of the existing pre-release.
 
 ## Promoting and rolling back
 
-- **Promote:** run **Promote a release** (`promote.yml`) by hand with the tag, and approve the `release` environment.
-  It downloads the web tarball from the GitHub release, checks it against `SHA256SUMS` and its attestation (made by
-  release.yml), deploys it to the `production` branch of the Pages project (app.safechat.family), then
-  turns the pre-release into the latest full release.
+- **Promote:** run **Promote a release** (`promote.yml`) by hand with the tag, and approve the `release` environment
+  (once). It downloads the web tarball from the GitHub release, checks it against `SHA256SUMS` and its attestation
+  (made by release.yml) and deploys it to the `production` branch of the Pages project (app.safechat.family). At the
+  same time it publishes the desktop update feeds and dictionaries the same way (checked files only), then turns the
+  pre-release into the latest full release. Installed desktop apps pick the update up within the hour. If one of the
+  two deploy jobs fails, the release stays a pre-release: fix the cause and run Promote again with the same tag.
 - **Roll back the web app:** in the Pages dashboard, "Rollback to this deployment" on the previous production
   deployment (instant), or run Promote again with the previous tag.
-- **Roll back a desktop build:** there is no update feed yet, so nothing is pushed to installed apps. Mark the GitHub
-  release as withdrawn in its notes, and promote the previous tag so that it is the latest again.
+- **Roll back a desktop build:** run Promote with the previous tag and mark the bad GitHub release as withdrawn in its
+  notes. The feeds then name the previous build: macOS apps move back to it (the app updates whenever the feed's
+  version differs from its own), but Squirrel.Windows only ever installs a newer version, so Windows apps keep the bad
+  build until a fixed `-fc.<n+1>` release is promoted.
 
 ## Rotating credentials
 
@@ -170,15 +205,14 @@ the files of the existing pre-release.
 - **Azure:** there is no client secret to rotate. Artifact Signing renews its short-lived certificates itself; if the
   organisation name changes, identity validation and the profile are redone and `AZURE_SIGNING_PUBLISHER` updated.
 - **Cloudflare token:** roll it in the Cloudflare dashboard (or gitops-environments) and replace `CLOUDFLARE_API_TOKEN`.
+- **R2 token:** create a new one (same permission, same bucket), replace `R2_ACCESS_KEY_ID` and
+  `R2_SECRET_ACCESS_KEY`, then delete the old one.
 
 ## Not done yet
 
 These are part of #5 but need infrastructure that does not exist yet; each is a follow-up:
 
-- **Update feeds and `packages.safechat.family`:** the desktop config (`apps/desktop/familychat/config.json`) already
-  points `update_base_url` at `https://packages.safechat.family/desktop/update/`, so builds released now will update
-  themselves once the feed exists (`macos/releases.json` + zip for Squirrel.Mac, `win32/x64/RELEASES` + nupkg for
-  Squirrel.Windows). Publishing those to R2 is not done: until then, the apps' hourly update check fails harmlessly
-  and nothing points at Element. electron-builder's own `publish` stays `null`.
+- **Windows delta packages:** the Windows feed only has full packages, so every update downloads the whole app.
+  Deltas need the previous package at build time (electron-builder's `remoteReleases`).
 - **Signed apt repository** on `packages.safechat.family` (GPG key in the `release` environment).
 - **arm64** Linux and Windows builds.
