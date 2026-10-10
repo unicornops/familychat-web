@@ -52,6 +52,7 @@ echo
 echo '- `familychat-web-*.tar.gz`: the web app, as served at app.safechat.family.'
 echo '- `familychat-desktop-*-macos-universal.dmg` (or `.zip`): macOS, signed with our Developer ID and notarised.'
 echo '- `familychat-desktop-*-windows-x64-setup.exe` (or `.msi`): Windows, signed through Azure Artifact Signing.'
+echo '- `*-full.nupkg` and `familychat-desktop-*-windows-x64-RELEASES`: the Windows update feed; installed apps fetch them, not people.'
 echo '- `familychat-desktop-*-linux-amd64.deb`, `.AppImage` or `.tar.gz`: Linux, not signed; check it against `SHA256SUMS`.'
 echo
 echo 'The desktop builds have no encrypted-message search (Seshat is not built into them yet). Check any file against'

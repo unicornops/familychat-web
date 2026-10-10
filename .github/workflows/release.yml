@@ -8,7 +8,8 @@
 #   the repository variable CLOUDFLARE_PAGES_PROJECT is set (production is promote.yml);
 # - the desktop app from that same web app: Linux (deb, AppImage, tar.gz; not signed), macOS (universal dmg + zip,
 #   Developer ID signed and notarised) and, once the repository variable WINDOWS_SIGNING is `enabled`, Windows
-#   (Squirrel installer + MSI, signed through Azure Artifact Signing with GitHub OIDC);
+#   (Squirrel installer + MSI, and the Squirrel update package with its RELEASES file, signed through Azure Artifact
+#   Signing with GitHub OIDC);
 # - a GitHub pre-release with all of it, a CycloneDX SBOM, SHA256SUMS and build provenance attestations.
 # Every job that signs or deploys runs in the protected `release` environment (Rob is the required reviewer). They all
 # start waiting at the same moment, after the web build, so one approval covers the whole release. The gate, the
@@ -389,9 +390,14 @@ jobs:
                   mkdir -p ../../dist
                   setup=(dist/squirrel-windows/*.exe)
                   msi=(dist/*.msi)
+                  nupkg=(dist/squirrel-windows/*-full.nupkg)
                   [ "${#setup[@]}" = 1 ] && [ -f "${setup[0]}" ] && [ "${#msi[@]}" = 1 ] && [ -f "${msi[0]}" ]
+                  [ "${#nupkg[@]}" = 1 ] && [ -f "${nupkg[0]}" ] && [ -f dist/squirrel-windows/RELEASES ]
                   cp "${setup[0]}" "../../dist/familychat-desktop-$TAG-windows-x64-setup.exe"
                   cp "${msi[0]}" "../../dist/familychat-desktop-$TAG-windows-x64.msi"
+                  # The update feed (promote.yml): RELEASES names the package by its file name, so the package keeps it.
+                  cp "${nupkg[0]}" ../../dist/
+                  cp dist/squirrel-windows/RELEASES "../../dist/familychat-desktop-$TAG-windows-x64-RELEASES"
                   for f in ../../dist/*.exe ../../dist/*.msi; do
                     FILE="$f" pwsh -NoProfile -Command '
                       $s = Get-AuthenticodeSignature -FilePath $env:FILE
